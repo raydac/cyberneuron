@@ -1,2 +1,1 @@
-# cyberneuron
-Implementation of cyberneuron
+Java implementation of cyber-neuron described in [the work](https://arxiv.org/pdf/0907.0229.pdf).
