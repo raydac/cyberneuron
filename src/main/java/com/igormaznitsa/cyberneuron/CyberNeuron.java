@@ -6,7 +6,7 @@ import java.util.Random;
 public abstract class CyberNeuron {
 
     private static final Random RND_GEN = new Random(12345L);
-    protected final int inputLength;
+    protected final int inputSize;
     protected final int maxValue;
     protected final int rowLength;
     protected final int thresholdMin;
@@ -16,7 +16,7 @@ public abstract class CyberNeuron {
             final int inputLength,
             final int maxValue
     ) {
-        this.inputLength = inputLength;
+        this.inputSize = inputLength;
         this.maxValue = maxValue;
 
         this.thresholdMin = this.getMaxTableValue() / 5;
@@ -40,6 +40,10 @@ public abstract class CyberNeuron {
         }
     }
 
+    public int getInputSize() {
+        return this.inputSize;
+    }
+
     protected abstract int getMaxTableValue();
 
     protected abstract int getMinTableValue();
@@ -58,13 +62,13 @@ public abstract class CyberNeuron {
     }
 
     public void fillRandom() {
-        for (int i = 0; i < (this.inputLength * this.rowLength); i++) {
+        for (int i = 0; i < (this.inputSize * this.rowLength); i++) {
             this.setTableValue(i, RND_GEN.nextInt(this.getMinTableValue(), this.getMaxTableValue()));
         }
     }
 
     private void assertArraySize(final Object array) {
-        final int expected = this.rowLength * this.inputLength;
+        final int expected = this.rowLength * this.inputSize;
         final int provided = Array.getLength(array);
         if (provided != expected) {
             throw new IllegalArgumentException("Expected size of array is " + expected + " but provided " + provided);
@@ -93,8 +97,8 @@ public abstract class CyberNeuron {
     }
 
     public void add(final int[] inputs) {
-        if (this.inputLength != inputs.length)
-            throw new IllegalArgumentException("Wrong input length: " + this.inputLength + " != " + inputs.length);
+        if (this.inputSize != inputs.length)
+            throw new IllegalArgumentException("Wrong input length: " + this.inputSize + " != " + inputs.length);
         final int output = this.calc(inputs);
         if (output > this.getThresholdMax()) return;
 
@@ -103,8 +107,8 @@ public abstract class CyberNeuron {
     }
 
     public void remove(final int[] inputs) {
-        if (this.inputLength != inputs.length)
-            throw new IllegalArgumentException("Wrong input length: " + this.inputLength + " != " + inputs.length);
+        if (this.inputSize != inputs.length)
+            throw new IllegalArgumentException("Wrong input length: " + this.inputSize + " != " + inputs.length);
 
         final int output = this.calc(inputs);
         if (output <= this.getThresholdMin()) return;
@@ -117,7 +121,7 @@ public abstract class CyberNeuron {
     private void changeNeuronStats(final int[] inputs, final int modifier) {
         if (modifier >= 0) {
             for (int m = 0; m < modifier; m++) {
-                final int rowNumber = RND_GEN.nextInt(this.inputLength);
+                final int rowNumber = RND_GEN.nextInt(this.inputSize);
                 final int tableIndex = this.rowLength * rowNumber + inputs[rowNumber];
                 int value = this.getTableValue(tableIndex);
                 if (value < this.getMaxTableValue()) {
@@ -127,7 +131,7 @@ public abstract class CyberNeuron {
             }
         } else {
             for (int m = 0; m < Math.abs(modifier); m++) {
-                final int rowNumber = RND_GEN.nextInt(this.inputLength);
+                final int rowNumber = RND_GEN.nextInt(this.inputSize);
                 final int tableIndex = this.rowLength * rowNumber + inputs[rowNumber];
                 int value = this.getTableValue(tableIndex);
                 if (value > this.getMinTableValue()) {
@@ -139,7 +143,11 @@ public abstract class CyberNeuron {
     }
 
     public ConfidenceDegree check(final int[] inputs) {
-        final int calculated = calc(inputs);
+        return this.check(0, inputs);
+    }
+
+    public ConfidenceDegree check(final int offset, final int[] inputs) {
+        final int calculated = calc(offset, inputs);
         if (calculated > this.thresholdMax) return ConfidenceDegree.YES;
         if (calculated > this.getThresholdMax() / 2) return ConfidenceDegree.MAY_BE_YES;
         if (calculated > this.thresholdMin) return ConfidenceDegree.MAY_BE_NO;
@@ -147,14 +155,18 @@ public abstract class CyberNeuron {
     }
 
     public int calc(final int[] inputs) {
-        if (inputs.length != this.inputLength) {
-            throw new IllegalArgumentException("Expected input array length is " + this.inputLength + ": " + inputs.length);
+        return this.calc(0, inputs);
+    }
+
+    public int calc(final int offset, final int[] inputs) {
+        if (inputs.length - offset < this.inputSize) {
+            throw new IllegalArgumentException("Unexpected inputs length: " + (inputs.length - offset));
         }
         int acc = 0;
-        int offset = 0;
-        for (int i = 0; i < this.inputLength; i++) {
-            acc += this.getTableValue(offset + inputs[i]);
-            offset += this.rowLength;
+        int offsetRow = 0;
+        for (int i = 0; i < this.inputSize; i++) {
+            acc += this.getTableValue(offsetRow + inputs[i + offset]);
+            offsetRow += this.rowLength;
         }
         return acc;
     }
@@ -167,7 +179,7 @@ public abstract class CyberNeuron {
         final StringBuilder buffer = new StringBuilder();
         buffer.append("CyberNeuron: [");
         int offset = 0;
-        for (int i = 0; i < this.inputLength; i++) {
+        for (int i = 0; i < this.inputSize; i++) {
             if (i > 0) buffer.append(", ");
             buffer.append('(');
             for (int j = 0; j < this.rowLength; j++) {
