@@ -17,32 +17,32 @@ public class CyberNeuron {
     private final byte[] table;
 
     public CyberNeuron(
-            final int inputLength,
+            final int inputSize,
             final int maxInputValue,
             final Random rnd
     ) {
-        this.inputSize = inputLength;
+        this.inputSize = inputSize;
         this.maxValue = maxInputValue;
         this.rowLength = this.maxValue + 1;
-        this.table = new byte[inputLength * this.rowLength];
+        this.table = new byte[inputSize * this.rowLength];
         this.rnd = requireNonNull(rnd);
     }
 
     public static CyberNeuron of(
-            final int inputLength,
+            final int inputSize,
             final int maxValue
     ) {
-        return CyberNeuron.of(inputLength, maxValue, DEFAULT_RND);
+        return CyberNeuron.of(inputSize, maxValue, DEFAULT_RND);
     }
 
     public static CyberNeuron of(
-            final int inputLength,
+            final int inputSize,
             final int maxValue,
             final Random rnd
     ) {
-        if (inputLength <= 0) throw new IllegalArgumentException("Number of inputs must be positive one");
+        if (inputSize <= 0) throw new IllegalArgumentException("Number of inputs must be positive one");
         if (maxValue < 0) throw new IllegalArgumentException("Max value must not be negative one");
-        return new CyberNeuron(inputLength, maxValue, rnd);
+        return new CyberNeuron(inputSize, maxValue, rnd);
     }
 
     protected int getTableValue(final int index) {
@@ -99,7 +99,7 @@ public class CyberNeuron {
 
     public void add(final int[] inputs) {
         if (this.inputSize != inputs.length)
-            throw new IllegalArgumentException("Wrong input length: " + this.inputSize + " != " + inputs.length);
+            throw new IllegalArgumentException("Wrong input size: " + this.inputSize + " != " + inputs.length);
         final int output = this.calc(inputs);
         if (output > THRESHOLD_MAX) return;
         final int modifier = THRESHOLD_MAX - output;
@@ -108,7 +108,7 @@ public class CyberNeuron {
 
     public void remove(final int[] inputs) {
         if (this.inputSize != inputs.length)
-            throw new IllegalArgumentException("Wrong input length: " + this.inputSize + " != " + inputs.length);
+            throw new IllegalArgumentException("Wrong input size: " + this.inputSize + " != " + inputs.length);
 
         final int output = this.calc(inputs);
         if (output <= THRESHOLD_MIN) return;
@@ -159,7 +159,7 @@ public class CyberNeuron {
 
     public int calc(final int offset, final int[] inputs) {
         if (inputs.length - offset < this.inputSize) {
-            throw new IllegalArgumentException("Unexpected inputs length: " + (inputs.length - offset));
+            throw new IllegalArgumentException("Unexpected inputs size: " + (inputs.length - offset));
         }
         int acc = 0;
         int offsetRow = 0;
