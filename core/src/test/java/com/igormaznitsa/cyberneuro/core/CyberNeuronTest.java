@@ -1,8 +1,8 @@
-package com.igormaznitsa.cyberneuron;
+package com.igormaznitsa.cyberneuro.core;
 
 import org.junit.jupiter.api.Test;
 
-import static com.igormaznitsa.cyberneuron.ConfidenceDegree.*;
+import static com.igormaznitsa.cyberneuro.core.ConfidenceDegree.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class CyberNeuronTest {

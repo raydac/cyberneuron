@@ -1,4 +1,4 @@
-package com.igormaznitsa.cyberneuron;
+package com.igormaznitsa.cyberneuro.core;
 
 import java.lang.reflect.Array;
 import java.util.Random;

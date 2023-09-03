@@ -1,4 +1,4 @@
-package com.igormaznitsa.cyberneuron;
+package com.igormaznitsa.cyberneuro.core;
 
 public enum ConfidenceDegree {
     NO,
