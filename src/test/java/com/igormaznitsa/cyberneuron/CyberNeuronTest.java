@@ -9,7 +9,7 @@ class CyberNeuronTest {
 
     @Test
     void testCalc() {
-        final CyberNeuron neuron = CyberNeuron.make(6, 3, false);
+        final CyberNeuron neuron = CyberNeuron.of(6, 3);
         neuron.fill(new byte[]{
                 0, 15, 0, 0,
                 0, 0, 0, 20,
@@ -24,7 +24,7 @@ class CyberNeuronTest {
 
     @Test
     void testLearnAnd() {
-        final CyberNeuron neuron = CyberNeuron.make(2, 1, true);
+        final CyberNeuron neuron = CyberNeuron.of(2, 1);
 
         neuron.add(new int[]{1, 1});
         neuron.remove(new int[]{0, 0});
@@ -39,7 +39,7 @@ class CyberNeuronTest {
 
     @Test
     void testLearnOr() {
-        final CyberNeuron neuron = CyberNeuron.make(2, 1, true);
+        final CyberNeuron neuron = CyberNeuron.of(2, 1);
 
         neuron.add(new int[]{0, 1});
         neuron.add(new int[]{1, 0});
@@ -54,7 +54,7 @@ class CyberNeuronTest {
 
     @Test
     void testLearnNot() {
-        final CyberNeuron neuron = CyberNeuron.make(1, 1, true);
+        final CyberNeuron neuron = CyberNeuron.of(1, 1);
 
         neuron.add(new int[]{0});
         neuron.remove(new int[]{1});
