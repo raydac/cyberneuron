@@ -76,7 +76,7 @@ public class CyberNeuron {
       return;
     }
     final int modifier = THRESHOLD_MAX - output;
-    learnStrategy.d(this, inputs, modifier);
+    learnStrategy.accept(this, inputs, modifier);
   }
 
   public void remove(final int[] inputs, final LearnStrategy learnStrategy) {
@@ -91,7 +91,7 @@ public class CyberNeuron {
     }
 
     final int modifier = THRESHOLD_MIN - output;
-    learnStrategy.d(this, inputs, modifier);
+    learnStrategy.accept(this, inputs, modifier);
   }
 
   public ConfidenceDegree check(final int[] inputs) {

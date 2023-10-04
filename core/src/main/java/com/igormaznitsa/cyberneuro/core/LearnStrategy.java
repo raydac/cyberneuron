@@ -36,7 +36,7 @@ public enum LearnStrategy {
     this.changer = changer;
   }
 
-  public void d(final CyberNeuron neuron, final int[] inputs, final int modifier) {
+  public void accept(final CyberNeuron neuron, final int[] inputs, final int modifier) {
     this.changer.accept(neuron, inputs, modifier);
   }
 
