@@ -65,17 +65,6 @@ public class CyberNeuron {
         return this.inputSize;
     }
 
-    protected void assertValue(final int value) {
-        if (value < 0 || value > this.maxValue)
-            throw new IllegalArgumentException("Unexpected value, must be in range 0.." + this.maxValue);
-    }
-
-    public void fillRandom() {
-        for (int i = 0; i < (this.inputSize * this.rowLength); i++) {
-            this.setTableValue(i, this.rnd.nextInt(Byte.MIN_VALUE, Byte.MAX_VALUE));
-        }
-    }
-
     private void assertArraySize(final Object array) {
         final int expected = this.rowLength * this.inputSize;
         final int provided = Array.getLength(array);
@@ -85,20 +74,6 @@ public class CyberNeuron {
     }
 
     public void fill(final byte[] values) {
-        assertArraySize(values);
-        for (int i = 0; i < values.length; i++) {
-            this.setTableValue(i, values[i]);
-        }
-    }
-
-    public void fill(final short[] values) {
-        assertArraySize(values);
-        for (int i = 0; i < values.length; i++) {
-            this.setTableValue(i, values[i]);
-        }
-    }
-
-    public void fill(final int[] values) {
         assertArraySize(values);
         for (int i = 0; i < values.length; i++) {
             this.setTableValue(i, values[i]);
