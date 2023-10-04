@@ -16,6 +16,14 @@ public class CyberNeuron {
     protected final int rowLength;
     private final byte[] table;
 
+    public int getRowLength() {
+        return this.rowLength;
+    }
+
+    public Random getRnd() {
+        return this.rnd;
+    }
+
     public CyberNeuron(
             final int inputSize,
             final int maxInputValue,
@@ -97,16 +105,16 @@ public class CyberNeuron {
         }
     }
 
-    public void add(final int[] inputs) {
+    public void add(final int[] inputs, final LearnStrategy learnStrategy) {
         if (this.inputSize != inputs.length)
             throw new IllegalArgumentException("Wrong input size: " + this.inputSize + " != " + inputs.length);
         final int output = this.calc(inputs);
         if (output > THRESHOLD_MAX) return;
         final int modifier = THRESHOLD_MAX - output;
-        this.changeNeuronStats(inputs, modifier);
+        learnStrategy.d(this, inputs, modifier);
     }
 
-    public void remove(final int[] inputs) {
+    public void remove(final int[] inputs, final LearnStrategy learnStrategy) {
         if (this.inputSize != inputs.length)
             throw new IllegalArgumentException("Wrong input size: " + this.inputSize + " != " + inputs.length);
 
@@ -114,31 +122,7 @@ public class CyberNeuron {
         if (output <= THRESHOLD_MIN) return;
 
         final int modifier = THRESHOLD_MIN - output;
-        this.changeNeuronStats(inputs, modifier);
-    }
-
-    private void changeNeuronStats(final int[] inputs, final int modifier) {
-        if (modifier >= 0) {
-            for (int m = 0; m < modifier; m++) {
-                final int rowNumber = this.rnd.nextInt(this.inputSize);
-                final int tableIndex = this.rowLength * rowNumber + inputs[rowNumber];
-                int value = this.getTableValue(tableIndex);
-                if (value < Byte.MAX_VALUE) {
-                    value++;
-                    this.setTableValue(tableIndex, value);
-                }
-            }
-        } else {
-            for (int m = 0; m < Math.abs(modifier); m++) {
-                final int rowNumber = this.rnd.nextInt(this.inputSize);
-                final int tableIndex = this.rowLength * rowNumber + inputs[rowNumber];
-                int value = this.getTableValue(tableIndex);
-                if (value > Byte.MIN_VALUE) {
-                    value--;
-                    this.setTableValue(tableIndex, value);
-                }
-            }
-        }
+        learnStrategy.d(this, inputs, modifier);
     }
 
     public ConfidenceDegree check(final int[] inputs) {

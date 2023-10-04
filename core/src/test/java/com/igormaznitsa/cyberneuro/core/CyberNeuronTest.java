@@ -3,6 +3,7 @@ package com.igormaznitsa.cyberneuro.core;
 import org.junit.jupiter.api.Test;
 
 import static com.igormaznitsa.cyberneuro.core.ConfidenceDegree.*;
+import static com.igormaznitsa.cyberneuro.core.LearnStrategy.RANDOM;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class CyberNeuronTest {
@@ -26,10 +27,10 @@ class CyberNeuronTest {
     void testLearnAnd() {
         final CyberNeuron neuron = CyberNeuron.of(2, 1);
 
-        neuron.add(new int[]{1, 1});
-        neuron.remove(new int[]{0, 0});
-        neuron.remove(new int[]{0, 1});
-        neuron.remove(new int[]{1, 0});
+        neuron.add(new int[]{1, 1}, RANDOM);
+        neuron.remove(new int[]{0, 0}, RANDOM);
+        neuron.remove(new int[]{0, 1}, RANDOM);
+        neuron.remove(new int[]{1, 0}, RANDOM);
 
         assertEquals(NO, neuron.check(new int[]{0, 0}));
         assertEquals(NO, neuron.check(new int[]{0, 1}));
@@ -41,10 +42,10 @@ class CyberNeuronTest {
     void testLearnOr() {
         final CyberNeuron neuron = CyberNeuron.of(2, 1);
 
-        neuron.add(new int[]{0, 1});
-        neuron.add(new int[]{1, 0});
-        neuron.add(new int[]{1, 1});
-        neuron.remove(new int[]{0, 0});
+        neuron.add(new int[]{0, 1}, RANDOM);
+        neuron.add(new int[]{1, 0}, RANDOM);
+        neuron.add(new int[]{1, 1}, RANDOM);
+        neuron.remove(new int[]{0, 0}, RANDOM);
 
         assertEquals(NO, neuron.check(new int[]{0, 0}));
         assertEquals(MAY_BE_YES, neuron.check(new int[]{0, 1}));
@@ -56,8 +57,8 @@ class CyberNeuronTest {
     void testLearnNot() {
         final CyberNeuron neuron = CyberNeuron.of(1, 1);
 
-        neuron.add(new int[]{0});
-        neuron.remove(new int[]{1});
+        neuron.add(new int[]{0}, RANDOM);
+        neuron.remove(new int[]{1}, RANDOM);
 
         assertEquals(NO, neuron.check(new int[]{1}));
         assertEquals(MAY_BE_YES, neuron.check(new int[]{0}));
