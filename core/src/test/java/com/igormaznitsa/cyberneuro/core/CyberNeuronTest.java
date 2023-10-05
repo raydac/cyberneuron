@@ -2,8 +2,7 @@ package com.igormaznitsa.cyberneuro.core;
 
 import static com.igormaznitsa.cyberneuro.core.ConfidenceDegree.MAY_BE_YES;
 import static com.igormaznitsa.cyberneuro.core.ConfidenceDegree.NO;
-import static com.igormaznitsa.cyberneuro.core.ConfidenceDegree.YES;
-import static com.igormaznitsa.cyberneuro.core.LearnStrategy.RANDOM;
+import static com.igormaznitsa.cyberneuro.core.LearnStrategy.SEQUENTIAL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
@@ -29,10 +28,10 @@ class CyberNeuronTest {
   void testLearnAnd() {
     final CyberNeuron neuron = CyberNeuron.of(2, 1);
 
-    neuron.add(new int[] {1, 1}, RANDOM);
-    neuron.remove(new int[] {0, 0}, RANDOM);
-    neuron.remove(new int[] {0, 1}, RANDOM);
-    neuron.remove(new int[] {1, 0}, RANDOM);
+    neuron.add(new int[] {1, 1}, SEQUENTIAL);
+    neuron.remove(new int[] {0, 0}, SEQUENTIAL);
+    neuron.remove(new int[] {0, 1}, SEQUENTIAL);
+    neuron.remove(new int[] {1, 0}, SEQUENTIAL);
 
     assertEquals(NO, neuron.check(new int[] {0, 0}));
     assertEquals(NO, neuron.check(new int[] {0, 1}));
@@ -44,23 +43,23 @@ class CyberNeuronTest {
   void testLearnOr() {
     final CyberNeuron neuron = CyberNeuron.of(2, 1);
 
-    neuron.add(new int[] {0, 1}, RANDOM);
-    neuron.add(new int[] {1, 0}, RANDOM);
-    neuron.add(new int[] {1, 1}, RANDOM);
-    neuron.remove(new int[] {0, 0}, RANDOM);
+    neuron.add(new int[] {0, 1}, SEQUENTIAL);
+    neuron.add(new int[] {1, 0}, SEQUENTIAL);
+    neuron.remove(new int[] {0, 0}, SEQUENTIAL);
+    neuron.add(new int[] {1, 1}, SEQUENTIAL);
 
     assertEquals(NO, neuron.check(new int[] {0, 0}));
     assertEquals(MAY_BE_YES, neuron.check(new int[] {0, 1}));
     assertEquals(MAY_BE_YES, neuron.check(new int[] {1, 0}));
-    assertEquals(YES, neuron.check(new int[] {1, 1}));
+    assertEquals(MAY_BE_YES, neuron.check(new int[] {1, 1}));
   }
 
   @Test
   void testLearnNot() {
     final CyberNeuron neuron = CyberNeuron.of(1, 1);
 
-    neuron.add(new int[] {0}, RANDOM);
-    neuron.remove(new int[] {1}, RANDOM);
+    neuron.add(new int[] {0}, SEQUENTIAL);
+    neuron.remove(new int[] {1}, SEQUENTIAL);
 
     assertEquals(NO, neuron.check(new int[] {1}));
     assertEquals(MAY_BE_YES, neuron.check(new int[] {0}));

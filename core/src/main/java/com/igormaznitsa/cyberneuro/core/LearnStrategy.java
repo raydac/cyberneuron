@@ -4,27 +4,50 @@ import java.util.Random;
 
 public enum LearnStrategy {
 
+  SEQUENTIAL((neuron, inputs, modifier) -> {
+    int simpleModifier = modifier;
+    final boolean increment = simpleModifier >= 0;
+    simpleModifier = Math.abs(simpleModifier);
+    int index = 0;
+    if (simpleModifier >= 0) {
+      for (int m = 0; m < simpleModifier; m++) {
+        final int rowNumber = index % neuron.getInputSize();
+        final int tableIndex = neuron.getRowLength() * rowNumber + inputs[rowNumber];
+        int value = neuron.getTableValue(tableIndex);
+        if (increment) {
+          if (value < Byte.MAX_VALUE) {
+            value++;
+            neuron.setTableValue(tableIndex, value);
+          }
+        } else {
+          if (value > Byte.MIN_VALUE) {
+            value--;
+            neuron.setTableValue(tableIndex, value);
+          }
+        }
+        index++;
+      }
+    }
+  }),
   RANDOM((neuron, inputs, modifier) -> {
     int simpleModifier = modifier;
+    final boolean increment = simpleModifier >= 0;
+    simpleModifier = Math.abs(simpleModifier);
     if (simpleModifier >= 0) {
       for (int m = 0; m < simpleModifier; m++) {
         final int rowNumber = Internal.RND.nextInt(neuron.getInputSize());
         final int tableIndex = neuron.getRowLength() * rowNumber + inputs[rowNumber];
         int value = neuron.getTableValue(tableIndex);
-        if (value < Byte.MAX_VALUE) {
-          value++;
-          neuron.setTableValue(tableIndex, value);
-        }
-      }
-    } else {
-      simpleModifier = Math.abs(simpleModifier);
-      for (int m = 0; m < simpleModifier; m++) {
-        final int rowNumber = Internal.RND.nextInt(neuron.getInputSize());
-        final int tableIndex = neuron.getRowLength() * rowNumber + inputs[rowNumber];
-        int value = neuron.getTableValue(tableIndex);
-        if (value > Byte.MIN_VALUE) {
-          value--;
-          neuron.setTableValue(tableIndex, value);
+        if (increment) {
+          if (value < Byte.MAX_VALUE) {
+            value++;
+            neuron.setTableValue(tableIndex, value);
+          }
+        } else {
+          if (value > Byte.MIN_VALUE) {
+            value--;
+            neuron.setTableValue(tableIndex, value);
+          }
         }
       }
     }
