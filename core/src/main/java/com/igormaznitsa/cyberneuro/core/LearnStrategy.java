@@ -8,7 +8,7 @@ public enum LearnStrategy {
     int simpleModifier = modifier;
     final boolean increment = simpleModifier >= 0;
     simpleModifier = Math.abs(simpleModifier);
-    int index = 0;
+    int index = simpleModifier % neuron.getInputSize();
     if (simpleModifier >= 0) {
       for (int m = 0; m < simpleModifier; m++) {
         final int rowNumber = index % neuron.getInputSize();
