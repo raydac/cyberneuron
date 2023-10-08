@@ -1,23 +1,29 @@
 package com.igormaznitsa.cyberneuro.core;
 
 import java.lang.reflect.Array;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
-public class CyberNeuron {
+public final class CyberNeuron {
 
-  protected static final int THRESHOLD_MIN = Byte.MAX_VALUE / 5;
-  protected static final int THRESHOLD_MAX = Byte.MAX_VALUE - THRESHOLD_MIN;
-  protected final int inputSize;
-  protected final int maxValue;
-  protected final int rowLength;
+  private static final AtomicLong GENERATOR_ID = new AtomicLong();
+
+  private static final int THRESHOLD_NO = Byte.MAX_VALUE / 5;
+  private static final int THRESHOLD_YES = Byte.MAX_VALUE - THRESHOLD_NO;
+  private static final int THRESHOLD_MIDDLE = Byte.MAX_VALUE / 2;
+  private final int inputSize;
+  private final int rowLength;
+  private final long uid;
   private final byte[] table;
 
   public CyberNeuron(
+      final long uid,
       final int inputSize,
       final int maxInputValue
   ) {
+    this.uid = uid;
     this.inputSize = inputSize;
-    this.maxValue = maxInputValue;
-    this.rowLength = this.maxValue + 1;
+    this.rowLength = maxInputValue + 1;
     this.table = new byte[inputSize * this.rowLength];
   }
 
@@ -31,7 +37,24 @@ public class CyberNeuron {
     if (maxValue < 0) {
       throw new IllegalArgumentException("Max value must not be negative one");
     }
-    return new CyberNeuron(inputSize, maxValue);
+    return new CyberNeuron(GENERATOR_ID.incrementAndGet(), inputSize, maxValue);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(this.uid);
+  }
+
+  @Override
+  public boolean equals(final Object object) {
+    if (object == null) {
+      return false;
+    }
+    if (object == this) {
+      return true;
+    }
+    return object instanceof CyberNeuron
+        && (this.uid == ((CyberNeuron) object).uid);
   }
 
   public int getRowLength() {
@@ -66,32 +89,61 @@ public class CyberNeuron {
     }
   }
 
-  public void add(final int[] inputs, final LearnStrategy learnStrategy) {
+  public void teach(final int[] inputs, final LearnStrategy learnStrategy,
+                    final ConfidenceDegree confidenceDegree) {
     if (this.inputSize != inputs.length) {
       throw new IllegalArgumentException(
           "Wrong input size: " + this.inputSize + " != " + inputs.length);
     }
     final int output = this.calc(inputs);
-    if (output > THRESHOLD_MAX) {
-      return;
+    final int modifier;
+    switch (confidenceDegree) {
+      case YES: {
+        if (output > THRESHOLD_YES) {
+          modifier = 0;
+        } else {
+          modifier = Math.max(1, (THRESHOLD_YES + 1) - output);
+        }
+      }
+      break;
+      case MAY_BE_YES: {
+        if (output > THRESHOLD_MIDDLE) {
+          modifier = 0;
+        } else {
+          modifier = Math.max(1, THRESHOLD_MIDDLE - output);
+        }
+      }
+      break;
+      case NO: {
+        if (output < THRESHOLD_NO) {
+          modifier = 0;
+        } else {
+          modifier = Math.min(-1, (THRESHOLD_NO - 1) - output);
+        }
+      }
+      break;
+      case MAY_BE_NO: {
+        if (output < THRESHOLD_MIDDLE && output > THRESHOLD_NO) {
+          modifier = 0;
+        } else {
+          if (output < THRESHOLD_NO) {
+            modifier = Math.max(1, (THRESHOLD_NO + 1) - output);
+          } else {
+            if (output > THRESHOLD_MIDDLE) {
+              modifier = Math.min(-1, (THRESHOLD_MIDDLE - 1) - output);
+            } else {
+              modifier = 0;
+            }
+          }
+        }
+      }
+      break;
+      default:
+        throw new IllegalArgumentException("Unsupported confidence: " + confidenceDegree);
     }
-    final int modifier = THRESHOLD_MAX - output;
-    learnStrategy.accept(this, inputs, modifier);
-  }
-
-  public void remove(final int[] inputs, final LearnStrategy learnStrategy) {
-    if (this.inputSize != inputs.length) {
-      throw new IllegalArgumentException(
-          "Wrong input size: " + this.inputSize + " != " + inputs.length);
+    if (modifier != 0) {
+      learnStrategy.accept(this, inputs, modifier);
     }
-
-    final int output = this.calc(inputs);
-    if (output <= THRESHOLD_MIN) {
-      return;
-    }
-
-    final int modifier = THRESHOLD_MIN - output;
-    learnStrategy.accept(this, inputs, modifier);
   }
 
   public ConfidenceDegree check(final int[] inputs) {
@@ -100,13 +152,13 @@ public class CyberNeuron {
 
   public ConfidenceDegree check(final int offset, final int[] inputs) {
     final int calculated = calc(offset, inputs);
-    if (calculated > THRESHOLD_MAX) {
+    if (calculated > THRESHOLD_YES) {
       return ConfidenceDegree.YES;
     }
-    if (calculated > THRESHOLD_MAX / 2) {
+    if (calculated > THRESHOLD_MIDDLE) {
       return ConfidenceDegree.MAY_BE_YES;
     }
-    if (calculated > THRESHOLD_MIN) {
+    if (calculated > THRESHOLD_NO) {
       return ConfidenceDegree.MAY_BE_NO;
     }
     return ConfidenceDegree.NO;
@@ -131,7 +183,7 @@ public class CyberNeuron {
 
   public String asText() {
     final StringBuilder buffer = new StringBuilder();
-    buffer.append("CyberNeuron: [");
+    buffer.append("CyberNeuron: [uid=").append(this.uid).append(", ");
     int offset = 0;
     for (int i = 0; i < this.inputSize; i++) {
       if (i > 0) {
