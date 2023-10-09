@@ -25,6 +25,7 @@ public final class CyberNeuron {
     this.inputSize = inputSize;
     this.rowLength = maxInputValue + 1;
     this.table = new byte[inputSize * this.rowLength];
+    fillByPseudoRnd(this.table);
   }
 
   public static CyberNeuron of(
@@ -201,5 +202,13 @@ public final class CyberNeuron {
     }
     buffer.append(']');
     return buffer.toString();
+  }
+
+  private static void fillByPseudoRnd(final byte[] array) {
+    int seed = array.length;
+    for (int i = 0; i < array.length; i++) {
+      seed = (seed * 73129 + 95121) % 100000;
+      array[i] = (byte) seed;
+    }
   }
 }

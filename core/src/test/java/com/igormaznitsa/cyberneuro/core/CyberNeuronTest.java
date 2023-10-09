@@ -1,5 +1,6 @@
 package com.igormaznitsa.cyberneuro.core;
 
+import static com.igormaznitsa.cyberneuro.core.ConfidenceDegree.MAY_BE_NO;
 import static com.igormaznitsa.cyberneuro.core.ConfidenceDegree.MAY_BE_YES;
 import static com.igormaznitsa.cyberneuro.core.ConfidenceDegree.NO;
 import static com.igormaznitsa.cyberneuro.core.ConfidenceDegree.YES;
@@ -46,12 +47,12 @@ class CyberNeuronTest {
 
     neuron.teach(new int[] {0, 1}, SEQUENTIAL, YES);
     neuron.teach(new int[] {1, 1}, SEQUENTIAL, YES);
-    neuron.teach(new int[] {1, 0}, SEQUENTIAL, YES);
     neuron.teach(new int[] {0, 0}, SEQUENTIAL, NO);
+    neuron.teach(new int[] {1, 0}, SEQUENTIAL, YES);
 
-    assertEquals(NO, neuron.check(new int[] {0, 0}));
+    assertEquals(MAY_BE_NO, neuron.check(new int[] {0, 0}));
     assertEquals(MAY_BE_YES, neuron.check(new int[] {0, 1}));
-    assertEquals(MAY_BE_YES, neuron.check(new int[] {1, 0}));
+    assertEquals(YES, neuron.check(new int[] {1, 0}));
     assertEquals(YES, neuron.check(new int[] {1, 1}));
   }
 
