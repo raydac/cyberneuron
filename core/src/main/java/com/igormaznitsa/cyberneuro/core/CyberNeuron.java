@@ -91,60 +91,53 @@ public final class CyberNeuron {
   }
 
   public void teach(final int[] inputs, final LearnStrategy learnStrategy,
-                    final ConfidenceDegree confidenceDegree) {
+                    final ConfidenceDegree expectedConfidence) {
     if (this.inputSize != inputs.length) {
       throw new IllegalArgumentException(
           "Wrong input size: " + this.inputSize + " != " + inputs.length);
     }
-    final int output = this.calc(inputs);
-    final int modifier;
-    switch (confidenceDegree) {
+    if (this.check(inputs) == expectedConfidence) {
+      return;
+    }
+
+    final int expectedMin;
+    final int expectedMax;
+    switch (expectedConfidence) {
       case YES: {
-        if (output > THRESHOLD_YES) {
-          modifier = 0;
-        } else {
-          modifier = Math.max(1, (THRESHOLD_YES + 1) - output);
-        }
+        expectedMin = THRESHOLD_YES + 1;
+        expectedMax = Byte.MAX_VALUE;
       }
       break;
       case MAY_BE_YES: {
-        if (output > THRESHOLD_MIDDLE) {
-          modifier = 0;
-        } else {
-          modifier = Math.max(1, THRESHOLD_MIDDLE - output);
-        }
+        expectedMin = THRESHOLD_MIDDLE + 1;
+        expectedMax = THRESHOLD_YES - 1;
       }
       break;
       case NO: {
-        if (output < THRESHOLD_NO) {
-          modifier = 0;
-        } else {
-          modifier = Math.min(-1, (THRESHOLD_NO - 1) - output);
-        }
+        expectedMin = Byte.MIN_VALUE;
+        expectedMax = THRESHOLD_NO - 1;
       }
       break;
       case MAY_BE_NO: {
-        if (output < THRESHOLD_MIDDLE && output > THRESHOLD_NO) {
-          modifier = 0;
-        } else {
-          if (output < THRESHOLD_NO) {
-            modifier = Math.max(1, (THRESHOLD_NO + 1) - output);
-          } else {
-            if (output > THRESHOLD_MIDDLE) {
-              modifier = Math.min(-1, (THRESHOLD_MIDDLE - 1) - output);
-            } else {
-              modifier = 0;
-            }
-          }
-        }
+        expectedMin = THRESHOLD_NO;
+        expectedMax = THRESHOLD_MIDDLE - 1;
       }
       break;
       default:
-        throw new IllegalArgumentException("Unsupported confidence: " + confidenceDegree);
+        throw new IllegalArgumentException("Unsupported confidence: " + expectedConfidence);
     }
-    if (modifier != 0) {
-      learnStrategy.accept(this, inputs, modifier);
+
+    final int current = this.calc(inputs);
+    final int diff;
+    if (current < expectedMin) {
+      diff = expectedMin - current;
+    } else if (current > expectedMax) {
+      diff = expectedMax - current;
+    } else {
+      throw new IllegalStateException("Unexpected state");
     }
+
+    learnStrategy.accept(this, inputs, diff);
   }
 
   public ConfidenceDegree check(final int[] inputs) {
