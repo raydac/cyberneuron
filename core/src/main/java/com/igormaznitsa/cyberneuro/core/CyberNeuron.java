@@ -4,7 +4,7 @@ import java.lang.reflect.Array;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
-public final class CyberNeuron {
+public final class CyberNeuron implements CyberNetEntity {
 
   private static final AtomicLong GENERATOR_ID = new AtomicLong();
 
@@ -39,6 +39,11 @@ public final class CyberNeuron {
       throw new IllegalArgumentException("Max value must not be negative one");
     }
     return new CyberNeuron(GENERATOR_ID.incrementAndGet(), inputSize, maxValue);
+  }
+
+  @Override
+  public boolean isInputIndexValid(final int index) {
+    return index >= 0 && index < this.inputSize;
   }
 
   @Override

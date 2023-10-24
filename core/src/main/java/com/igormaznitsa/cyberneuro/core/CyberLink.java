@@ -1,19 +1,18 @@
 package com.igormaznitsa.cyberneuro.core;
 
+import static java.util.Objects.requireNonNull;
+
 import java.util.Objects;
 
-public record CyberLink(CyberNeuron source, CyberNeuron target, int targetInputIndex) {
+public record CyberLink(CyberNetEntity source, CyberNetEntity target, int targetInputIndex) {
   public CyberLink {
-    Objects.requireNonNull(source);
-    Objects.requireNonNull(target);
+    requireNonNull(source);
+    requireNonNull(target);
     if (source.equals(target)) {
       throw new IllegalArgumentException("Source neuron is equals target neuron");
     }
-    if (targetInputIndex < 0) {
-      throw new IllegalArgumentException("Negative input index");
-    }
-    if (targetInputIndex >= target.getInputSize()) {
-      throw new IndexOutOfBoundsException("Input index is out of bound");
+    if (target.isInputIndexValid(targetInputIndex)) {
+      throw new IndexOutOfBoundsException("Input index is out of bounds");
     }
   }
 
@@ -26,13 +25,13 @@ public record CyberLink(CyberNeuron source, CyberNeuron target, int targetInputI
       return false;
     }
     CyberLink cyberLink = (CyberLink) that;
-    return targetInputIndex == cyberLink.targetInputIndex &&
-        Objects.equals(source, cyberLink.source) &&
-        Objects.equals(target, cyberLink.target);
+    return this.targetInputIndex == cyberLink.targetInputIndex &&
+        Objects.equals(this.source, cyberLink.source) &&
+        Objects.equals(this.target, cyberLink.target);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(source, target, targetInputIndex);
+    return Objects.hash(this.source, this.target, this.targetInputIndex);
   }
 }
