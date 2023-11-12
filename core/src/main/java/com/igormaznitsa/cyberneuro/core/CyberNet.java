@@ -74,6 +74,11 @@ public class CyberNet {
         .anyMatch(x -> x.source().equals(neuron) && x.targetInputIndex() == inputIndex);
   }
 
+  public void remove(final CyberNetInput input) {
+    this.inputs.remove(input);
+    this.entities.remove(input);
+  }
+
   public void remove(final CyberNetEntity entity) {
     if (this.entities.remove(entity) != null) {
       if (entity instanceof CyberNetInput) {
@@ -120,11 +125,6 @@ public class CyberNet {
           }
           return foundOutputs == 1 && foundInputs == ((CyberNeuron) x.getKey()).getInputSize();
         });
-  }
-
-  public void remove(final CyberNetInput input) {
-    this.inputs.remove(input);
-    this.entities.remove(input);
   }
 
   public List<CyberNetInput> findInputs() {

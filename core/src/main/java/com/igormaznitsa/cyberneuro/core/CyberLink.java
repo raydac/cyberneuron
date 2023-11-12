@@ -25,9 +25,9 @@ public record CyberLink(CyberNetEntity source, CyberNetEntity target, int target
       return false;
     }
     CyberLink cyberLink = (CyberLink) that;
-    return this.targetInputIndex == cyberLink.targetInputIndex &&
-        Objects.equals(this.source, cyberLink.source) &&
-        Objects.equals(this.target, cyberLink.target);
+    return this.targetInputIndex == cyberLink.targetInputIndex
+        && Objects.equals(this.source, cyberLink.source)
+        && Objects.equals(this.target, cyberLink.target);
   }
 
   @Override
