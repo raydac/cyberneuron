@@ -11,7 +11,7 @@ public record CyberLink(CyberNetEntity source, CyberNetEntity target, int target
     if (source.equals(target)) {
       throw new IllegalArgumentException("Source neuron is equals target neuron");
     }
-    if (target.isInputIndexValid(targetInputIndex)) {
+    if (!target.isInputIndexValid(targetInputIndex)) {
       throw new IndexOutOfBoundsException("Input index is out of bounds");
     }
   }

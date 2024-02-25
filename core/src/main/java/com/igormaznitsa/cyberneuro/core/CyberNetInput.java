@@ -1,24 +1,27 @@
 package com.igormaznitsa.cyberneuro.core;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 
 public final class CyberNetInput implements CyberNetEntity {
 
-  private static final AtomicLong ID_GENERATOR = new AtomicLong();
-  private final long id;
+  private final long uid;
 
-  CyberNetInput(final long id) {
-    this.id = id;
+  CyberNetInput(final long uid) {
+    this.uid = uid;
+  }
+
+  static CyberNetInput makeNew() {
+    return new CyberNetInput(UID_GENERATOR.incrementAndGet());
+  }
+
+  @Override
+  public long getUid() {
+    return this.uid;
   }
 
   @Override
   public boolean isInputIndexValid(final int index) {
     return index == 0;
-  }
-
-  static CyberNetInput makeNew() {
-    return new CyberNetInput(ID_GENERATOR.incrementAndGet());
   }
 
   @Override
@@ -30,11 +33,11 @@ public final class CyberNetInput implements CyberNetEntity {
       return false;
     }
     final CyberNetInput that = (CyberNetInput) thatObj;
-    return this.id == that.id;
+    return this.uid == that.uid;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(this.id);
+    return Objects.hash(this.uid);
   }
 }

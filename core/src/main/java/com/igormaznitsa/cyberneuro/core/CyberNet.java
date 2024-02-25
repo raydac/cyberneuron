@@ -43,23 +43,17 @@ public class CyberNet {
     return newInput;
   }
 
-  public CyberLink addInternalLink(final CyberNeuron src, final CyberNeuron target,
-                                   final int targetIndex) {
-    if (!this.entities.containsKey(src)) {
-      throw new NoSuchElementException("Can't find source neurons among registered neurons");
+  private static String makeId(final CyberNetEntity entity) {
+    if (entity instanceof CyberNeuron) {
+      return "N_" + entity.getUid();
     }
-
-    if (!this.entities.containsKey(target)) {
-      throw new NoSuchElementException("Can't find target neurons among registered neurons");
+    if (entity instanceof CyberNetOutput) {
+      return "O_" + entity.getUid();
     }
-
-    if (this.hasLinkedInput(target, targetIndex)) {
-      throw new IllegalStateException("Neuron input already linked");
+    if (entity instanceof CyberNetInput) {
+      return "I_" + entity.getUid();
     }
-
-    var newLink = new CyberLink(src, target, targetIndex);
-    this.entities.computeIfAbsent(src, x -> new HashSet<>()).add(newLink);
-    return newLink;
+    throw new IllegalArgumentException("Unexpected type: " + entity);
   }
 
   public void freeLinkedInput(final CyberNeuron neuron, final int inputIndex) {
@@ -68,10 +62,24 @@ public class CyberNet {
             x -> x.removeIf(y -> y.targetInputIndex() == inputIndex && y.target().equals(neuron)));
   }
 
-  public boolean hasLinkedInput(final CyberNeuron neuron, final int inputIndex) {
-    return this.entities.values().stream()
-        .flatMap(Collection::stream)
-        .anyMatch(x -> x.source().equals(neuron) && x.targetInputIndex() == inputIndex);
+  public CyberLink addInternalLink(final CyberNetEntity src, final CyberNetEntity target,
+                                   final int targetIndex) {
+    if (this.inputs.stream().noneMatch(x -> x.equals(src)) && !this.entities.containsKey(src)) {
+      throw new NoSuchElementException("Can't find source entity among registered neurons");
+    }
+
+    if (this.outputs.stream().noneMatch(x -> x.equals(target)) &&
+        !this.entities.containsKey(target)) {
+      throw new NoSuchElementException("Can't find target entity among registered neurons");
+    }
+
+    if (this.hasLinkedInput(target, targetIndex)) {
+      throw new IllegalStateException("Target input already linked");
+    }
+
+    var newLink = new CyberLink(src, target, targetIndex);
+    this.entities.computeIfAbsent(src, x -> new HashSet<>()).add(newLink);
+    return newLink;
   }
 
   public void remove(final CyberNetInput input) {
@@ -140,6 +148,63 @@ public class CyberNet {
         .filter(CyberNeuron.class::isInstance)
         .map(x -> (CyberNeuron) x)
         .collect(Collectors.toSet());
+  }
+
+  public boolean hasLinkedInput(final CyberNetEntity entity, final int inputIndex) {
+    if (entity instanceof CyberNeuron) {
+      return this.entities.values().stream()
+          .flatMap(Collection::stream)
+          .anyMatch(x -> x.source().equals(entity) && x.targetInputIndex() == inputIndex);
+    } else if (entity instanceof CyberNetOutput) {
+      return this.entities.values().stream().flatMap(Collection::stream)
+          .anyMatch(x -> x.target().equals(entity));
+    } else {
+      throw new IllegalArgumentException("Allowed only type " + CyberNeuron.class.getSimpleName());
+    }
+  }
+
+  public String makeDotDiagram() {
+    final StringBuilder builder = new StringBuilder();
+    final String eol = "\n";
+
+    builder.append("digraph G {").append(eol)
+        .append("rankdir=LR;").append(eol);
+
+    final Map<CyberNetEntity, String> processedEntities = new HashMap<>();
+
+    this.inputs.forEach(x -> processedEntities.computeIfAbsent(x, k -> {
+      final String id = makeId(k);
+      builder.append('\"').append(id).append("\" [color=green;shape=box];").append(eol);
+      return id;
+    }));
+
+    this.outputs.forEach(x -> processedEntities.computeIfAbsent(x, k -> {
+      final String id = makeId(k);
+      builder.append('\"').append(id).append("\" [color=red;shape=box];").append(eol);
+      return id;
+    }));
+
+    this.entities.entrySet().stream()
+        .filter(e -> !processedEntities.containsKey(e.getKey()))
+        .filter(e -> e.getKey() instanceof CyberNeuron)
+        .forEach(e -> processedEntities.computeIfAbsent(e.getKey(), k -> {
+              final String id = makeId(k);
+              builder.append('\"').append(id).append("\" [color=blue;shape=oval];").append(eol);
+              return id;
+            })
+        );
+
+    this.entities.values().stream().flatMap(Collection::stream)
+        .forEach(l -> {
+          final String idSource = processedEntities.get(l.source());
+          final String idTarget = processedEntities.get(l.target());
+          builder.append('\"').append(idSource).append("\" -> \"").append(idTarget).append("\";")
+              .append(eol);
+        });
+
+    builder.append('}');
+
+    return builder.toString();
   }
 
 }

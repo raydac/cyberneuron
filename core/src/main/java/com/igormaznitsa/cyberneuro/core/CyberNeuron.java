@@ -2,11 +2,8 @@ package com.igormaznitsa.cyberneuro.core;
 
 import java.lang.reflect.Array;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 
 public final class CyberNeuron implements CyberNetEntity {
-
-  private static final AtomicLong GENERATOR_ID = new AtomicLong();
 
   private static final int THRESHOLD_NO = Byte.MAX_VALUE / 5;
   private static final int THRESHOLD_YES = Byte.MAX_VALUE - THRESHOLD_NO;
@@ -15,6 +12,19 @@ public final class CyberNeuron implements CyberNetEntity {
   private final int rowLength;
   private final long uid;
   private final byte[] table;
+
+  public static CyberNeuron of(
+      final int inputSize,
+      final int maxValue
+  ) {
+    if (inputSize <= 0) {
+      throw new IllegalArgumentException("Number of inputs must be positive one");
+    }
+    if (maxValue < 0) {
+      throw new IllegalArgumentException("Max value must not be negative one");
+    }
+    return new CyberNeuron(UID_GENERATOR.incrementAndGet(), inputSize, maxValue);
+  }
 
   public CyberNeuron(
       final long uid,
@@ -28,17 +38,9 @@ public final class CyberNeuron implements CyberNetEntity {
     fillByPseudoRnd(this.table);
   }
 
-  public static CyberNeuron of(
-      final int inputSize,
-      final int maxValue
-  ) {
-    if (inputSize <= 0) {
-      throw new IllegalArgumentException("Number of inputs must be positive one");
-    }
-    if (maxValue < 0) {
-      throw new IllegalArgumentException("Max value must not be negative one");
-    }
-    return new CyberNeuron(GENERATOR_ID.incrementAndGet(), inputSize, maxValue);
+  @Override
+  public long getUid() {
+    return this.uid;
   }
 
   @Override
