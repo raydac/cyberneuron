@@ -177,12 +177,14 @@ public class CyberNet {
     if (entity instanceof CyberNeuron) {
       return this.entities.values().stream()
           .flatMap(Collection::stream)
-          .anyMatch(x -> x.source().equals(entity) && x.targetInputIndex() == inputIndex);
+          .anyMatch(x -> x.target().equals(entity)
+              && x.targetInputIndex() == inputIndex);
     } else if (entity instanceof CyberNetOutput) {
       return this.entities.values().stream().flatMap(Collection::stream)
           .anyMatch(x -> x.target().equals(entity));
     } else {
-      throw new IllegalArgumentException("Allowed only type " + CyberNeuron.class.getSimpleName());
+      throw new IllegalArgumentException(
+          "Not allowed input entity type: " + entity.getClass().getName());
     }
   }
 

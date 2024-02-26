@@ -3,6 +3,7 @@ package com.igormaznitsa.cyberneuro.core;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class CyberNetTest {
@@ -31,6 +32,20 @@ class CyberNetTest {
     net.addInternalLink(neuron1, out1, 0);
 
     assertFalse(net.isValid());
+  }
+
+  @Test
+  void testErrorForDuplicationOfLinkToNeuronInput() {
+    CyberNet net = new CyberNet();
+    var input1 = net.addInput();
+    var input2 = net.addInput();
+    var neuron1 = CyberNeuron.of(2, 1);
+
+    net.addNeuron(neuron1);
+
+    net.addInternalLink(input1, neuron1, 0);
+    Assertions.assertThrowsExactly(IllegalStateException.class,
+        () -> net.addInternalLink(input2, neuron1, 0));
   }
 
   @Test
@@ -87,15 +102,15 @@ class CyberNetTest {
     net.addInternalLink(input3, neuron2, 2);
 
     net.addInternalLink(neuron1, neuron3, 0);
-    net.addInternalLink(neuron1, neuron4, 1);
+    net.addInternalLink(neuron1, neuron4, 0);
 
-    net.addInternalLink(neuron2, neuron3, 0);
+    net.addInternalLink(neuron2, neuron3, 1);
     net.addInternalLink(neuron2, neuron4, 1);
 
     net.addInternalLink(neuron3, out1, 0);
     net.addInternalLink(neuron4, out2, 0);
 
-    assertFalse(net.isValid());
+    assertTrue(net.isValid());
 
     logDiagram("3x2 network", net);
   }
