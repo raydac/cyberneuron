@@ -193,6 +193,7 @@ public class CyberNet {
     final String eol = "\n";
 
     builder.append("digraph G {").append(eol)
+        .append("graph [splines=true]").append(eol)
         .append("rankdir=LR;").append(eol);
 
     final Map<CyberNetEntity, String> processedEntities = new HashMap<>();
@@ -223,7 +224,8 @@ public class CyberNet {
         .forEach(l -> {
           final String idSource = processedEntities.get(l.source());
           final String idTarget = processedEntities.get(l.target());
-          builder.append('\"').append(idSource).append("\" -> \"").append(idTarget).append("\";")
+          builder.append('\"').append(idSource).append("\" -> \"").append(idTarget)
+              .append("\" [fontsize=8;label=\"").append(l.targetInputIndex()).append("\"];")
               .append(eol);
         });
 
