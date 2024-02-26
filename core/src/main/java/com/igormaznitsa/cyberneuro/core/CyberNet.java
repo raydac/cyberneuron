@@ -62,14 +62,22 @@ public class CyberNet {
             x -> x.removeIf(y -> y.targetInputIndex() == inputIndex && y.target().equals(neuron)));
   }
 
-  public CyberLink addInternalLink(final CyberNetEntity src, final CyberNetEntity target,
-                                   final int targetIndex) {
-    if (this.inputs.stream().noneMatch(x -> x.equals(src)) && !this.entities.containsKey(src)) {
+  private boolean hasEntity(final CyberNetEntity entity) {
+    return this.entities.containsKey(entity)
+        || this.inputs.stream().anyMatch(x -> x.equals(entity))
+        || this.outputs.stream().anyMatch(x -> x.equals(entity));
+  }
+
+  public CyberLink addInternalLink(
+      final CyberNetEntity src,
+      final CyberNetEntity target,
+      final int targetIndex
+  ) {
+    if (!this.hasEntity(src)) {
       throw new NoSuchElementException("Can't find source entity among registered neurons");
     }
 
-    if (this.outputs.stream().noneMatch(x -> x.equals(target)) &&
-        !this.entities.containsKey(target)) {
+    if (!this.hasEntity(target)) {
       throw new NoSuchElementException("Can't find target entity among registered neurons");
     }
 
@@ -98,41 +106,56 @@ public class CyberNet {
     }
   }
 
-  public boolean isValid() {
-    if (!(this.inputs.stream()
-        .allMatch(x -> {
+  public List<CyberNetInput> findErrorInputs() {
+    return this.inputs.stream()
+        .filter(x -> {
           var links = this.entities.get(x);
-          return links.size() == 1;
-        }) && this.outputs.stream()
-        .allMatch(x -> this.entities.entrySet().stream()
-            .flatMap(z -> z.getValue().stream())
-            .anyMatch(y -> y.target().equals(x))))) {
-      return false;
-    }
+          return links == null || links.isEmpty();
+        }).toList();
+  }
 
+  public List<CyberNetOutput> findErrorOutputs() {
+    return this.outputs.stream()
+        .filter(x -> {
+          var foundSources = this.entities.entrySet().stream()
+              .flatMap(z -> z.getValue().stream())
+              .filter(z -> x.equals(z.target()))
+              .toList();
+          return foundSources.size() != 1;
+        }).toList();
+  }
+
+  public List<CyberNeuron> findErrorNeurons() {
     return this.entities.entrySet().stream()
         .filter(x -> x.getKey() instanceof CyberNeuron)
-        .allMatch(x -> {
-          var inputUse = new AtomicInteger(0);
+        .map(x -> (CyberNeuron) x.getKey())
+        .filter(neuron -> {
+          final Map<Integer, Integer> inputUse = new HashMap<>();
           var outputUse = new AtomicInteger(0);
-          this.entities.entrySet()
-              .stream()
+          this.entities.entrySet().stream()
               .flatMap(z -> z.getValue().stream())
+              .filter(z -> neuron.equals(z.target()) || neuron.equals(z.source()))
               .forEach(z -> {
-                if (z.target().equals(x.getKey())) {
-                  inputUse.incrementAndGet();
+                if (neuron.equals(z.target())) {
+                  inputUse.merge(z.targetInputIndex(), 1, Integer::sum);
                 }
-                if (z.source().equals(x.getKey())) {
+                if (neuron.equals(z.source())) {
                   outputUse.incrementAndGet();
                 }
               });
-          var foundOutputs = outputUse.get();
-          var foundInputs = inputUse.get();
-          if (foundOutputs > 1 || foundInputs > ((CyberNeuron) x.getKey()).getInputSize()) {
-            throw new IllegalStateException("Unexpected state of links for neuron");
-          }
-          return foundOutputs == 1 && foundInputs == ((CyberNeuron) x.getKey()).getInputSize();
-        });
+          return inputUse.size() < neuron.getInputSize() || outputUse.get() == 0;
+        })
+        .toList();
+  }
+
+  public boolean isValid() {
+    if (!this.findErrorInputs().isEmpty()) {
+      return false;
+    }
+    if (!this.findErrorOutputs().isEmpty()) {
+      return false;
+    }
+    return findErrorNeurons().isEmpty();
   }
 
   public List<CyberNetInput> findInputs() {
