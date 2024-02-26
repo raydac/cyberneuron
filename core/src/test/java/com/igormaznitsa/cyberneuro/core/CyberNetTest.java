@@ -1,9 +1,9 @@
 package com.igormaznitsa.cyberneuro.core;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class CyberNetTest {
@@ -40,12 +40,17 @@ class CyberNetTest {
     var input1 = net.addInput();
     var input2 = net.addInput();
     var neuron1 = CyberNeuron.of(2, 1);
+    var out1 = net.addOutput();
 
     net.addNeuron(neuron1);
 
     net.addInternalLink(input1, neuron1, 0);
-    Assertions.assertThrowsExactly(IllegalStateException.class,
+    assertThrowsExactly(IllegalStateException.class,
         () -> net.addInternalLink(input2, neuron1, 0));
+
+    net.addInternalLink(neuron1, out1, 0);
+    assertThrowsExactly(IllegalStateException.class,
+        () -> net.addInternalLink(neuron1, out1, 0));
   }
 
   @Test
