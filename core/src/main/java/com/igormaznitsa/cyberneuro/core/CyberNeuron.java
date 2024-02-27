@@ -3,7 +3,7 @@ package com.igormaznitsa.cyberneuro.core;
 import java.lang.reflect.Array;
 import java.util.Objects;
 
-public final class CyberNeuron implements CyberNetEntity {
+public final class CyberNeuron implements CyberNetEntityIn, CyberNetEntityOut {
 
   private static final int THRESHOLD_NO = Byte.MAX_VALUE / 5;
   private static final int THRESHOLD_YES = Byte.MAX_VALUE - THRESHOLD_NO;
@@ -12,6 +12,18 @@ public final class CyberNeuron implements CyberNetEntity {
   private final int rowLength;
   private final long uid;
   private final byte[] table;
+
+  public CyberNeuron(
+      final long uid,
+      final int inputSize,
+      final int maxInputValue
+  ) {
+    this.uid = uid;
+    this.inputSize = inputSize;
+    this.rowLength = maxInputValue + 1;
+    this.table = new byte[inputSize * this.rowLength];
+    fillByPseudoRnd(this.table);
+  }
 
   public static CyberNeuron of(
       final int inputSize,
@@ -26,16 +38,22 @@ public final class CyberNeuron implements CyberNetEntity {
     return new CyberNeuron(UID_GENERATOR.incrementAndGet(), inputSize, maxValue);
   }
 
-  public CyberNeuron(
-      final long uid,
-      final int inputSize,
-      final int maxInputValue
-  ) {
-    this.uid = uid;
-    this.inputSize = inputSize;
-    this.rowLength = maxInputValue + 1;
-    this.table = new byte[inputSize * this.rowLength];
-    fillByPseudoRnd(this.table);
+  private static void fillByPseudoRnd(final byte[] array) {
+    int seed = array.length;
+    for (int i = 0; i < array.length; i++) {
+      seed = (seed * 73129 + 95121) % 100000;
+      array[i] = (byte) seed;
+    }
+  }
+
+  @Override
+  public int getOutputSize() {
+    return 1;
+  }
+
+  @Override
+  public boolean isOutputIndexValid(final int index) {
+    return index == 0;
   }
 
   @Override
@@ -202,13 +220,5 @@ public final class CyberNeuron implements CyberNetEntity {
     }
     buffer.append(']');
     return buffer.toString();
-  }
-
-  private static void fillByPseudoRnd(final byte[] array) {
-    int seed = array.length;
-    for (int i = 0; i < array.length; i++) {
-      seed = (seed * 73129 + 95121) % 100000;
-      array[i] = (byte) seed;
-    }
   }
 }

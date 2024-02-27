@@ -13,12 +13,15 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-public class CyberNet {
+public class CyberNet implements CyberNetEntityIn, CyberNetEntityOut {
   private final Map<CyberNetEntity, Set<CyberLink>> entities;
-  private final List<CyberNetInput> inputs;
-  private final List<CyberNetOutput> outputs;
+  private final List<CyberNetInputPin> inputs;
+  private final List<CyberNetOutputPin> outputs;
+
+  private final long uid;
 
   public CyberNet() {
+    this.uid = UID_GENERATOR.incrementAndGet();
     this.entities = new HashMap<>();
     this.inputs = new ArrayList<>();
     this.outputs = new ArrayList<>();
@@ -31,29 +34,29 @@ public class CyberNet {
     this.entities.put(neuron, new HashSet<>());
   }
 
-  public CyberNetOutput addOutput() {
-    final CyberNetOutput newOutput = CyberNetOutput.makeNew();
-    this.outputs.add(newOutput);
-    return newOutput;
-  }
-
-  public CyberNetInput addInput() {
-    final CyberNetInput newInput = CyberNetInput.makeNew();
-    this.inputs.add(newInput);
-    return newInput;
-  }
-
   private static String makeId(final CyberNetEntity entity) {
     if (entity instanceof CyberNeuron) {
       return "N_" + entity.getUid();
     }
-    if (entity instanceof CyberNetOutput) {
+    if (entity instanceof CyberNetOutputPin) {
       return "O_" + entity.getUid();
     }
-    if (entity instanceof CyberNetInput) {
+    if (entity instanceof CyberNetInputPin) {
       return "I_" + entity.getUid();
     }
     throw new IllegalArgumentException("Unexpected type: " + entity);
+  }
+
+  public CyberNetOutputPin addOutput() {
+    final CyberNetOutputPin newOutput = CyberNetOutputPin.makeNew();
+    this.outputs.add(newOutput);
+    return newOutput;
+  }
+
+  public CyberNetInputPin addInput() {
+    final CyberNetInputPin newInput = CyberNetInputPin.makeNew();
+    this.inputs.add(newInput);
+    return newInput;
   }
 
   public void freeLinkedInput(final CyberNeuron neuron, final int inputIndex) {
@@ -90,23 +93,23 @@ public class CyberNet {
     return newLink;
   }
 
-  public void remove(final CyberNetInput input) {
+  public void remove(final CyberNetInputPin input) {
     this.inputs.remove(input);
     this.entities.remove(input);
   }
 
   public void remove(final CyberNetEntity entity) {
     if (this.entities.remove(entity) != null) {
-      if (entity instanceof CyberNetInput) {
+      if (entity instanceof CyberNetInputPin) {
         this.inputs.remove(entity);
       }
-      if (entity instanceof CyberNetOutput) {
+      if (entity instanceof CyberNetOutputPin) {
         this.outputs.remove(entity);
       }
     }
   }
 
-  public List<CyberNetInput> findErrorInputs() {
+  public List<CyberNetInputPin> findErrorInputs() {
     return this.inputs.stream()
         .filter(x -> {
           var links = this.entities.get(x);
@@ -114,7 +117,7 @@ public class CyberNet {
         }).toList();
   }
 
-  public List<CyberNetOutput> findErrorOutputs() {
+  public List<CyberNetOutputPin> findErrorOutputs() {
     return this.outputs.stream()
         .filter(x -> {
           var foundSources = this.entities.entrySet().stream()
@@ -158,11 +161,11 @@ public class CyberNet {
     return findErrorNeurons().isEmpty();
   }
 
-  public List<CyberNetInput> findInputs() {
+  public List<CyberNetInputPin> findInputs() {
     return List.copyOf(this.inputs);
   }
 
-  public List<CyberNetOutput> findOutputs() {
+  public List<CyberNetOutputPin> findOutputs() {
     return List.copyOf(this.outputs);
   }
 
@@ -179,7 +182,7 @@ public class CyberNet {
           .flatMap(Collection::stream)
           .anyMatch(x -> x.target().equals(entity)
               && x.targetInputIndex() == inputIndex);
-    } else if (entity instanceof CyberNetOutput) {
+    } else if (entity instanceof CyberNetOutputPin) {
       return this.entities.values().stream().flatMap(Collection::stream)
           .anyMatch(x -> x.target().equals(entity));
     } else {
@@ -234,4 +237,28 @@ public class CyberNet {
     return builder.toString();
   }
 
+  @Override
+  public long getUid() {
+    return this.uid;
+  }
+
+  @Override
+  public int getInputSize() {
+    return this.inputs.size();
+  }
+
+  @Override
+  public boolean isInputIndexValid(int index) {
+    return index >= 0 && index < this.inputs.size();
+  }
+
+  @Override
+  public int getOutputSize() {
+    return this.outputs.size();
+  }
+
+  @Override
+  public boolean isOutputIndexValid(final int index) {
+    return index >= 0 && index < this.outputs.size();
+  }
 }

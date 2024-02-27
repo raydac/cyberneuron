@@ -2,15 +2,25 @@ package com.igormaznitsa.cyberneuro.core;
 
 import java.util.Objects;
 
-public class CyberNetOutput implements CyberNetEntity {
+public class CyberNetOutputPin implements CyberNetEntityOut {
   private final long uid;
 
-  CyberNetOutput(final long uid) {
+  CyberNetOutputPin(final long uid) {
     this.uid = uid;
   }
 
-  static CyberNetOutput makeNew() {
-    return new CyberNetOutput(UID_GENERATOR.incrementAndGet());
+  static CyberNetOutputPin makeNew() {
+    return new CyberNetOutputPin(UID_GENERATOR.incrementAndGet());
+  }
+
+  @Override
+  public int getOutputSize() {
+    return 1;
+  }
+
+  @Override
+  public boolean isOutputIndexValid(int index) {
+    return index == 0;
   }
 
   @Override
@@ -31,7 +41,7 @@ public class CyberNetOutput implements CyberNetEntity {
     if (thatObj == null || getClass() != thatObj.getClass()) {
       return false;
     }
-    final CyberNetOutput that = (CyberNetOutput) thatObj;
+    final CyberNetOutputPin that = (CyberNetOutputPin) thatObj;
     return this.uid == that.uid;
   }
 

@@ -2,21 +2,26 @@ package com.igormaznitsa.cyberneuro.core;
 
 import java.util.Objects;
 
-public final class CyberNetInput implements CyberNetEntity {
+public final class CyberNetInputPin implements CyberNetEntityIn {
 
   private final long uid;
 
-  CyberNetInput(final long uid) {
+  CyberNetInputPin(final long uid) {
     this.uid = uid;
   }
 
-  static CyberNetInput makeNew() {
-    return new CyberNetInput(UID_GENERATOR.incrementAndGet());
+  static CyberNetInputPin makeNew() {
+    return new CyberNetInputPin(UID_GENERATOR.incrementAndGet());
   }
 
   @Override
   public long getUid() {
     return this.uid;
+  }
+
+  @Override
+  public int getInputSize() {
+    return 1;
   }
 
   @Override
@@ -32,7 +37,7 @@ public final class CyberNetInput implements CyberNetEntity {
     if (thatObj == null || getClass() != thatObj.getClass()) {
       return false;
     }
-    final CyberNetInput that = (CyberNetInput) thatObj;
+    final CyberNetInputPin that = (CyberNetInputPin) thatObj;
     return this.uid == that.uid;
   }
 
