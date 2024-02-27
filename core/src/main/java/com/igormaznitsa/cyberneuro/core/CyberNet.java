@@ -13,7 +13,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-public class CyberNet implements CyberNetEntityIn, CyberNetEntityOut {
+public class CyberNet implements HasCyberNetIn, HasCyberNetOut {
   private final Map<CyberNetEntity, Set<CyberLink>> entities;
   private final List<CyberNetInputPin> inputs;
   private final List<CyberNetOutputPin> outputs;
@@ -34,7 +34,7 @@ public class CyberNet implements CyberNetEntityIn, CyberNetEntityOut {
     this.entities.put(neuron, new HashSet<>());
   }
 
-  private static String makeId(final CyberNetEntity entity) {
+  private static String makeReadableId(final CyberNetEntity entity) {
     if (entity instanceof CyberNeuron) {
       return "N_" + entity.getUid();
     }
@@ -43,6 +43,9 @@ public class CyberNet implements CyberNetEntityIn, CyberNetEntityOut {
     }
     if (entity instanceof CyberNetInputPin) {
       return "I_" + entity.getUid();
+    }
+    if (entity instanceof CyberNet) {
+      return "M_" + entity.getUid();
     }
     throw new IllegalArgumentException("Unexpected type: " + entity);
   }
@@ -66,14 +69,12 @@ public class CyberNet implements CyberNetEntityIn, CyberNetEntityOut {
   }
 
   private boolean hasEntity(final CyberNetEntity entity) {
-    return this.entities.containsKey(entity)
-        || this.inputs.stream().anyMatch(x -> x.equals(entity))
-        || this.outputs.stream().anyMatch(x -> x.equals(entity));
+    return this.entities.containsKey(entity);
   }
 
-  public CyberLink addInternalLink(
-      final CyberNetEntity src,
-      final CyberNetEntity target,
+  public CyberLink makeLink(
+      final HasCyberNetOut src,
+      final HasCyberNetIn target,
       final int targetIndex
   ) {
     if (!this.hasEntity(src)) {
@@ -84,18 +85,13 @@ public class CyberNet implements CyberNetEntityIn, CyberNetEntityOut {
       throw new NoSuchElementException("Can't find target entity among registered neurons");
     }
 
-    if (this.hasLinkedInput(target, targetIndex)) {
+    if (this.isLinked(target, targetIndex)) {
       throw new IllegalStateException("Target input already linked");
     }
 
     var newLink = new CyberLink(src, target, targetIndex);
     this.entities.computeIfAbsent(src, x -> new HashSet<>()).add(newLink);
     return newLink;
-  }
-
-  public void remove(final CyberNetInputPin input) {
-    this.inputs.remove(input);
-    this.entities.remove(input);
   }
 
   public void remove(final CyberNetEntity entity) {
@@ -176,7 +172,7 @@ public class CyberNet implements CyberNetEntityIn, CyberNetEntityOut {
         .collect(Collectors.toSet());
   }
 
-  public boolean hasLinkedInput(final CyberNetEntity entity, final int inputIndex) {
+  public boolean isLinked(final CyberNetEntity entity, final int inputIndex) {
     if (entity instanceof CyberNeuron) {
       return this.entities.values().stream()
           .flatMap(Collection::stream)
@@ -202,13 +198,13 @@ public class CyberNet implements CyberNetEntityIn, CyberNetEntityOut {
     final Map<CyberNetEntity, String> processedEntities = new HashMap<>();
 
     this.inputs.forEach(x -> processedEntities.computeIfAbsent(x, k -> {
-      final String id = makeId(k);
+      final String id = makeReadableId(k);
       builder.append('\"').append(id).append("\" [color=green;shape=box];").append(eol);
       return id;
     }));
 
     this.outputs.forEach(x -> processedEntities.computeIfAbsent(x, k -> {
-      final String id = makeId(k);
+      final String id = makeReadableId(k);
       builder.append('\"').append(id).append("\" [color=red;shape=box];").append(eol);
       return id;
     }));
@@ -217,7 +213,7 @@ public class CyberNet implements CyberNetEntityIn, CyberNetEntityOut {
         .filter(e -> !processedEntities.containsKey(e.getKey()))
         .filter(e -> e.getKey() instanceof CyberNeuron)
         .forEach(e -> processedEntities.computeIfAbsent(e.getKey(), k -> {
-              final String id = makeId(k);
+          final String id = makeReadableId(k);
               builder.append('\"').append(id).append("\" [color=blue;shape=oval];").append(eol);
               return id;
             })

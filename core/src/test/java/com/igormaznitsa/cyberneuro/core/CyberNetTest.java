@@ -27,9 +27,9 @@ class CyberNetTest {
     var neuron1 = CyberNeuron.of(3, 1);
     net.addNeuron(neuron1);
 
-    net.addInternalLink(input1, neuron1, 0);
-    net.addInternalLink(input2, neuron1, 1);
-    net.addInternalLink(neuron1, out1, 0);
+    net.makeLink(input1, neuron1, 0);
+    net.makeLink(input2, neuron1, 1);
+    net.makeLink(neuron1, out1, 0);
 
     assertFalse(net.isValid());
   }
@@ -44,13 +44,13 @@ class CyberNetTest {
 
     net.addNeuron(neuron1);
 
-    net.addInternalLink(input1, neuron1, 0);
+    net.makeLink(input1, neuron1, 0);
     assertThrowsExactly(IllegalStateException.class,
-        () -> net.addInternalLink(input2, neuron1, 0));
+        () -> net.makeLink(input2, neuron1, 0));
 
-    net.addInternalLink(neuron1, out1, 0);
+    net.makeLink(neuron1, out1, 0);
     assertThrowsExactly(IllegalStateException.class,
-        () -> net.addInternalLink(neuron1, out1, 0));
+        () -> net.makeLink(neuron1, out1, 0));
   }
 
   @Test
@@ -66,11 +66,11 @@ class CyberNetTest {
 
     var out1 = net.addOutput();
 
-    net.addInternalLink(input1, neuron1, 0);
-    net.addInternalLink(input2, neuron1, 1);
-    net.addInternalLink(input3, neuron1, 2);
+    net.makeLink(input1, neuron1, 0);
+    net.makeLink(input2, neuron1, 1);
+    net.makeLink(input3, neuron1, 2);
 
-    net.addInternalLink(neuron1, out1, 0);
+    net.makeLink(neuron1, out1, 0);
 
     assertTrue(net.isValid());
 
@@ -98,22 +98,22 @@ class CyberNetTest {
     var out1 = net.addOutput();
     var out2 = net.addOutput();
 
-    net.addInternalLink(input1, neuron1, 0);
-    net.addInternalLink(input2, neuron1, 1);
-    net.addInternalLink(input3, neuron1, 2);
+    net.makeLink(input1, neuron1, 0);
+    net.makeLink(input2, neuron1, 1);
+    net.makeLink(input3, neuron1, 2);
 
-    net.addInternalLink(input1, neuron2, 0);
-    net.addInternalLink(input2, neuron2, 1);
-    net.addInternalLink(input3, neuron2, 2);
+    net.makeLink(input1, neuron2, 0);
+    net.makeLink(input2, neuron2, 1);
+    net.makeLink(input3, neuron2, 2);
 
-    net.addInternalLink(neuron1, neuron3, 0);
-    net.addInternalLink(neuron1, neuron4, 0);
+    net.makeLink(neuron1, neuron3, 0);
+    net.makeLink(neuron1, neuron4, 0);
 
-    net.addInternalLink(neuron2, neuron3, 1);
-    net.addInternalLink(neuron2, neuron4, 1);
+    net.makeLink(neuron2, neuron3, 1);
+    net.makeLink(neuron2, neuron4, 1);
 
-    net.addInternalLink(neuron3, out1, 0);
-    net.addInternalLink(neuron4, out2, 0);
+    net.makeLink(neuron3, out1, 0);
+    net.makeLink(neuron4, out2, 0);
 
     assertTrue(net.isValid());
 

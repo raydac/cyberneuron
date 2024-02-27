@@ -6,7 +6,5 @@ public interface CyberNetEntity {
 
   AtomicLong UID_GENERATOR = new AtomicLong();
 
-  boolean isInputIndexValid(int index);
-
   long getUid();
 }

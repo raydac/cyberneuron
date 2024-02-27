@@ -1,6 +1,6 @@
 package com.igormaznitsa.cyberneuro.core;
 
-public interface CyberNetEntityOut extends CyberNetEntity {
+public interface HasCyberNetOut extends CyberNetEntity {
   int getOutputSize();
 
   boolean isOutputIndexValid(int index);

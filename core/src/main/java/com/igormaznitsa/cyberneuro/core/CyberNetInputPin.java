@@ -2,7 +2,7 @@ package com.igormaznitsa.cyberneuro.core;
 
 import java.util.Objects;
 
-public final class CyberNetInputPin implements CyberNetEntityIn {
+public final class CyberNetInputPin implements HasCyberNetOut {
 
   private final long uid;
 
@@ -20,12 +20,12 @@ public final class CyberNetInputPin implements CyberNetEntityIn {
   }
 
   @Override
-  public int getInputSize() {
+  public int getOutputSize() {
     return 1;
   }
 
   @Override
-  public boolean isInputIndexValid(final int index) {
+  public boolean isOutputIndexValid(final int index) {
     return index == 0;
   }
 

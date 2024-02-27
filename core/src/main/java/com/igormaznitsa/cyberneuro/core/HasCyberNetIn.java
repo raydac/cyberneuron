@@ -1,6 +1,6 @@
 package com.igormaznitsa.cyberneuro.core;
 
-public interface CyberNetEntityIn extends CyberNetEntity {
+public interface HasCyberNetIn extends CyberNetEntity {
   int getInputSize();
 
   boolean isInputIndexValid(int index);

@@ -4,12 +4,12 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.Objects;
 
-public record CyberLink(CyberNetEntity source, CyberNetEntity target, int targetInputIndex) {
+public record CyberLink(HasCyberNetOut source, HasCyberNetIn target, int targetInputIndex) {
   public CyberLink {
     requireNonNull(source);
     requireNonNull(target);
     if (source.equals(target)) {
-      throw new IllegalArgumentException("Source neuron is equals target neuron");
+      throw new IllegalArgumentException("Can't link itself");
     }
     if (!target.isInputIndexValid(targetInputIndex)) {
       throw new IndexOutOfBoundsException("Input index is out of bounds");
