@@ -13,6 +13,14 @@ public final class CyberNeuron implements CyberNetEntity, HasInput, HasOutput {
   private final long uid;
   private final byte[] table;
 
+  @Override
+  public CyberNetEntity makeCopy() {
+    final CyberNeuron result =
+        new CyberNeuron(UID_GENERATOR.incrementAndGet(), this.inputSize, this.rowLength - 1);
+    System.arraycopy(this.table, 0, result.table, 0, this.table.length);
+    return result;
+  }
+
   public CyberNeuron(
       final long uid,
       final int inputSize,

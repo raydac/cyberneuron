@@ -9,6 +9,11 @@ public class CyberNetOutputPin implements CyberNetEntity, HasInput {
     this.uid = uid;
   }
 
+  @Override
+  public CyberNetEntity makeCopy() {
+    return new CyberNetOutputPin(UID_GENERATOR.incrementAndGet());
+  }
+
   static CyberNetOutputPin makeNew() {
     return new CyberNetOutputPin(UID_GENERATOR.incrementAndGet());
   }

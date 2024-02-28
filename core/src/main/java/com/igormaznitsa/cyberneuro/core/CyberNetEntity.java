@@ -1,14 +1,10 @@
 package com.igormaznitsa.cyberneuro.core;
 
-import java.util.concurrent.atomic.AtomicLong;
-
-public interface CyberNetEntity {
-
-  AtomicLong UID_GENERATOR = new AtomicLong();
-
-  long getUid();
+public interface CyberNetEntity extends HasUid {
 
   default boolean isValidInternally() {
     return true;
   }
+
+  CyberNetEntity makeCopy();
 }

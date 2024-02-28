@@ -107,6 +107,41 @@ public class CyberNet implements CyberNetEntity, HasInput, HasOutput {
     return newLink;
   }
 
+  @Override
+  public CyberNetEntity makeCopy() {
+    final CyberNet copyToReturn = new CyberNet();
+
+    final Map<Long, CyberNetEntity> mapOldIdToCopy = new HashMap<>();
+    this.inputs.forEach(x -> {
+      var newInput = x.makeCopy();
+      copyToReturn.inputs.add((CyberNetInputPin) newInput);
+      mapOldIdToCopy.put(x.getUid(), newInput);
+    });
+
+    this.outputs.forEach(x -> {
+      var newOutput = x.makeCopy();
+      copyToReturn.outputs.add((CyberNetOutputPin) newOutput);
+      mapOldIdToCopy.put(x.getUid(), newOutput);
+    });
+
+    this.internalEntities.keySet()
+        .forEach(x -> {
+          final CyberNetEntity copied = x.makeCopy();
+          mapOldIdToCopy.put(x.getUid(), copied);
+          copyToReturn.internalEntities.put(copied, new HashSet<>());
+        });
+
+    this.internalEntities.forEach((key, value) -> {
+      final CyberNetEntity newEntity = requireNonNull(mapOldIdToCopy.get(key.getUid()));
+      for (final CyberLink link : value) {
+        final CyberNetEntity newTarget = requireNonNull(mapOldIdToCopy.get(link.target().getUid()));
+        copyToReturn.link(newEntity, newTarget, link.targetInputIndex());
+      }
+    });
+
+    return copyToReturn;
+  }
+
   public Set<CyberNetEntity> findErrors() {
     var findErrorInputs = this.inputs.stream()
         .filter(x -> {
