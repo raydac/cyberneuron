@@ -19,17 +19,17 @@ class CyberNetTest {
   @Test
   void testNet_NonFullyConnectedNeuron() {
     CyberNet net = new CyberNet();
-    var input1 = net.addInput();
-    var input2 = net.addInput();
-    var input3 = net.addInput();
-    var out1 = net.addOutput();
+    var input1 = net.addInputPin();
+    var input2 = net.addInputPin();
+    var input3 = net.addInputPin();
+    var out1 = net.addOutputPin();
 
     var neuron1 = CyberNeuron.of(3, 1);
     net.addNeuron(neuron1);
 
-    net.makeLink(input1, neuron1, 0);
-    net.makeLink(input2, neuron1, 1);
-    net.makeLink(neuron1, out1, 0);
+    net.link(input1, neuron1, 0);
+    net.link(input2, neuron1, 1);
+    net.link(neuron1, out1, 0);
 
     assertFalse(net.isValid());
   }
@@ -37,40 +37,40 @@ class CyberNetTest {
   @Test
   void testErrorForDuplicationOfLinkToNeuronInput() {
     CyberNet net = new CyberNet();
-    var input1 = net.addInput();
-    var input2 = net.addInput();
+    var input1 = net.addInputPin();
+    var input2 = net.addInputPin();
     var neuron1 = CyberNeuron.of(2, 1);
-    var out1 = net.addOutput();
+    var out1 = net.addOutputPin();
 
     net.addNeuron(neuron1);
 
-    net.makeLink(input1, neuron1, 0);
+    net.link(input1, neuron1, 0);
     assertThrowsExactly(IllegalStateException.class,
-        () -> net.makeLink(input2, neuron1, 0));
+        () -> net.link(input2, neuron1, 0));
 
-    net.makeLink(neuron1, out1, 0);
+    net.link(neuron1, out1, 0);
     assertThrowsExactly(IllegalStateException.class,
-        () -> net.makeLink(neuron1, out1, 0));
+        () -> net.link(neuron1, out1, 0));
   }
 
   @Test
   void testNet_SingleNeuron() {
     CyberNet net = new CyberNet();
-    var input1 = net.addInput();
-    var input2 = net.addInput();
-    var input3 = net.addInput();
+    var input1 = net.addInputPin();
+    var input2 = net.addInputPin();
+    var input3 = net.addInputPin();
 
     var neuron1 = CyberNeuron.of(3, 1);
 
     net.addNeuron(neuron1);
 
-    var out1 = net.addOutput();
+    var out1 = net.addOutputPin();
 
-    net.makeLink(input1, neuron1, 0);
-    net.makeLink(input2, neuron1, 1);
-    net.makeLink(input3, neuron1, 2);
+    net.link(input1, neuron1, 0);
+    net.link(input2, neuron1, 1);
+    net.link(input3, neuron1, 2);
 
-    net.makeLink(neuron1, out1, 0);
+    net.link(neuron1, out1, 0);
 
     assertTrue(net.isValid());
 
@@ -80,9 +80,9 @@ class CyberNetTest {
   @Test
   void testNet_3_2() {
     CyberNet net = new CyberNet();
-    var input1 = net.addInput();
-    var input2 = net.addInput();
-    var input3 = net.addInput();
+    var input1 = net.addInputPin();
+    var input2 = net.addInputPin();
+    var input3 = net.addInputPin();
 
     var neuron1 = CyberNeuron.of(3, 1);
     var neuron2 = CyberNeuron.of(3, 1);
@@ -95,25 +95,25 @@ class CyberNetTest {
     net.addNeuron(neuron3);
     net.addNeuron(neuron4);
 
-    var out1 = net.addOutput();
-    var out2 = net.addOutput();
+    var out1 = net.addOutputPin();
+    var out2 = net.addOutputPin();
 
-    net.makeLink(input1, neuron1, 0);
-    net.makeLink(input2, neuron1, 1);
-    net.makeLink(input3, neuron1, 2);
+    net.link(input1, neuron1, 0);
+    net.link(input2, neuron1, 1);
+    net.link(input3, neuron1, 2);
 
-    net.makeLink(input1, neuron2, 0);
-    net.makeLink(input2, neuron2, 1);
-    net.makeLink(input3, neuron2, 2);
+    net.link(input1, neuron2, 0);
+    net.link(input2, neuron2, 1);
+    net.link(input3, neuron2, 2);
 
-    net.makeLink(neuron1, neuron3, 0);
-    net.makeLink(neuron1, neuron4, 0);
+    net.link(neuron1, neuron3, 0);
+    net.link(neuron1, neuron4, 0);
 
-    net.makeLink(neuron2, neuron3, 1);
-    net.makeLink(neuron2, neuron4, 1);
+    net.link(neuron2, neuron3, 1);
+    net.link(neuron2, neuron4, 1);
 
-    net.makeLink(neuron3, out1, 0);
-    net.makeLink(neuron4, out2, 0);
+    net.link(neuron3, out1, 0);
+    net.link(neuron4, out2, 0);
 
     assertTrue(net.isValid());
 

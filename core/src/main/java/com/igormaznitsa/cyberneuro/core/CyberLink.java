@@ -4,7 +4,7 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.Objects;
 
-public record CyberLink(HasCyberNetOut source, HasCyberNetIn target, int targetInputIndex) {
+public record CyberLink(HasOutput source, HasInput target, int targetInputIndex) {
   public CyberLink {
     requireNonNull(source);
     requireNonNull(target);

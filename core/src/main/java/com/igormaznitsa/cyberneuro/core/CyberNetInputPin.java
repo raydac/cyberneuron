@@ -2,7 +2,7 @@ package com.igormaznitsa.cyberneuro.core;
 
 import java.util.Objects;
 
-public final class CyberNetInputPin implements HasCyberNetOut {
+public final class CyberNetInputPin implements CyberNetEntity, HasOutput {
 
   private final long uid;
 
