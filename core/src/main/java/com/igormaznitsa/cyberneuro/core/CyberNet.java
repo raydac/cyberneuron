@@ -13,9 +13,9 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
-public class CyberNet implements CyberNetEntity, HasInput, HasOutput {
+@SuppressWarnings({"UnusedReturnValue", "BooleanMethodIsAlwaysInverted"})
+public class CyberNet implements CyberNetEntity, HasInput, HasSingleOutput {
   private final Map<CyberNetEntity, Set<CyberLink>> internalEntities;
   private final List<CyberNetInputPin> inputs;
   private final List<CyberNetOutputPin> outputs;
@@ -29,19 +29,7 @@ public class CyberNet implements CyberNetEntity, HasInput, HasOutput {
     this.outputs = new ArrayList<>();
   }
 
-  @Override
-  public boolean isValidInternally() {
-    return this.findErrors().isEmpty();
-  }
-
-  public void addNeuron(final CyberNeuron neuron) {
-    if (this.internalEntities.containsKey(requireNonNull(neuron))) {
-      throw new IllegalStateException("Neuron already presented in the network");
-    }
-    this.internalEntities.put(neuron, new HashSet<>());
-  }
-
-  private static String makeReadableId(final CyberNetEntity entity) {
+  private static String makeReadableId(final HasUid entity) {
     if (entity instanceof CyberNeuron) {
       return "N_" + entity.getUid();
     }
@@ -55,6 +43,31 @@ public class CyberNet implements CyberNetEntity, HasInput, HasOutput {
       return "M_" + entity.getUid();
     }
     throw new IllegalArgumentException("Unexpected type: " + entity);
+  }
+
+  @Override
+  public boolean isInternallyValid() {
+    return this.findErrors().isEmpty();
+  }
+
+  public void put(final CyberNetEntity entity) {
+    if (entity instanceof CyberNetInputPin input) {
+      if (this.inputs.contains(entity)) {
+        throw new IllegalStateException("Input already presented in the network");
+      } else {
+        this.inputs.add(input);
+      }
+    } else if (entity instanceof CyberNetOutputPin output) {
+      if (this.outputs.contains(entity)) {
+        throw new IllegalStateException("Output already presented in the network");
+      } else {
+        this.outputs.add(output);
+      }
+    } else if (this.internalEntities.containsKey(requireNonNull(entity))) {
+      throw new IllegalStateException("Neuron already presented in the network");
+    } else {
+      this.internalEntities.put(entity, new HashSet<>());
+    }
   }
 
   public CyberNetOutputPin addOutputPin() {
@@ -94,7 +107,7 @@ public class CyberNet implements CyberNetEntity, HasInput, HasOutput {
       throw new IllegalStateException("Target input already busy");
     }
 
-    if (!(src instanceof HasOutput)) {
+    if (!(src instanceof HasSingleOutput)) {
       throw new IllegalStateException("Source must have output feature");
     }
 
@@ -102,7 +115,7 @@ public class CyberNet implements CyberNetEntity, HasInput, HasOutput {
       throw new IllegalStateException("Source must have input feature");
     }
 
-    var newLink = new CyberLink((HasOutput) src, (HasInput) target, targetIndex);
+    var newLink = new CyberLink((HasSingleOutput) src, (HasInput) target, targetIndex);
     this.internalEntities.computeIfAbsent(src, x -> new HashSet<>()).add(newLink);
     return newLink;
   }
@@ -178,7 +191,7 @@ public class CyberNet implements CyberNetEntity, HasInput, HasOutput {
         });
 
     var findInternallyInvalid = this.internalEntities.keySet().stream()
-        .filter(x -> !x.isValidInternally());
+        .filter(x -> !x.isInternallyValid());
 
     return concat(findErrorInputs,
         concat(findInternallyInvalid,
@@ -191,21 +204,6 @@ public class CyberNet implements CyberNetEntity, HasInput, HasOutput {
 
   public boolean isValid() {
     return this.findErrors().isEmpty();
-  }
-
-  public List<CyberNetInputPin> findInputs() {
-    return List.copyOf(this.inputs);
-  }
-
-  public List<CyberNetOutputPin> findOutputs() {
-    return List.copyOf(this.outputs);
-  }
-
-  public Set<CyberNeuron> findNeurons() {
-    return this.internalEntities.keySet().stream()
-        .filter(CyberNeuron.class::isInstance)
-        .map(x -> (CyberNeuron) x)
-        .collect(Collectors.toSet());
   }
 
   public boolean hasLink(final CyberNetEntity entity, final int inputIndex) {
@@ -231,7 +229,7 @@ public class CyberNet implements CyberNetEntity, HasInput, HasOutput {
         .append("graph [splines=true]").append(eol)
         .append("rankdir=LR;").append(eol);
 
-    final Map<CyberNetEntity, String> processedEntities = new HashMap<>();
+    final Map<HasUid, String> processedEntities = new HashMap<>();
 
     this.inputs.forEach(x -> processedEntities.computeIfAbsent(x, k -> {
       final String id = makeReadableId(k);
@@ -284,13 +282,4 @@ public class CyberNet implements CyberNetEntity, HasInput, HasOutput {
     return index >= 0 && index < this.inputs.size();
   }
 
-  @Override
-  public int getOutputSize() {
-    return this.outputs.size();
-  }
-
-  @Override
-  public boolean isOutputIndexValid(final int index) {
-    return index >= 0 && index < this.outputs.size();
-  }
 }

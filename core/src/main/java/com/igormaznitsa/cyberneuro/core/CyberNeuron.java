@@ -3,7 +3,7 @@ package com.igormaznitsa.cyberneuro.core;
 import java.lang.reflect.Array;
 import java.util.Objects;
 
-public final class CyberNeuron implements CyberNetEntity, HasInput, HasOutput {
+public final class CyberNeuron implements CyberNetEntity, HasInput, HasSingleOutput {
 
   private static final int THRESHOLD_NO = Byte.MAX_VALUE / 5;
   private static final int THRESHOLD_YES = Byte.MAX_VALUE - THRESHOLD_NO;
@@ -55,16 +55,6 @@ public final class CyberNeuron implements CyberNetEntity, HasInput, HasOutput {
   }
 
   @Override
-  public int getOutputSize() {
-    return 1;
-  }
-
-  @Override
-  public boolean isOutputIndexValid(final int index) {
-    return index == 0;
-  }
-
-  @Override
   public long getUid() {
     return this.uid;
   }
@@ -95,11 +85,11 @@ public final class CyberNeuron implements CyberNetEntity, HasInput, HasOutput {
     return this.rowLength;
   }
 
-  protected int getTableValue(final int index) {
+  int getTableValue(final int index) {
     return this.table[index];
   }
 
-  protected void setTableValue(final int index, final int value) {
+  void setTableValue(final int index, final int value) {
     this.table[index] = (byte) value;
   }
 

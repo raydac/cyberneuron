@@ -25,7 +25,7 @@ class CyberNetTest {
     var out1 = net.addOutputPin();
 
     var neuron1 = CyberNeuron.of(3, 1);
-    net.addNeuron(neuron1);
+    net.put(neuron1);
 
     net.link(input1, neuron1, 0);
     net.link(input2, neuron1, 1);
@@ -42,7 +42,7 @@ class CyberNetTest {
     var neuron1 = CyberNeuron.of(2, 1);
     var out1 = net.addOutputPin();
 
-    net.addNeuron(neuron1);
+    net.put(neuron1);
 
     net.link(input1, neuron1, 0);
     assertThrowsExactly(IllegalStateException.class,
@@ -62,7 +62,7 @@ class CyberNetTest {
 
     var neuron1 = CyberNeuron.of(3, 1);
 
-    net.addNeuron(neuron1);
+    net.put(neuron1);
 
     var out1 = net.addOutputPin();
 
@@ -90,10 +90,10 @@ class CyberNetTest {
     var neuron3 = CyberNeuron.of(2, 1);
     var neuron4 = CyberNeuron.of(2, 1);
 
-    net.addNeuron(neuron1);
-    net.addNeuron(neuron2);
-    net.addNeuron(neuron3);
-    net.addNeuron(neuron4);
+    net.put(neuron1);
+    net.put(neuron2);
+    net.put(neuron3);
+    net.put(neuron4);
 
     var out1 = net.addOutputPin();
     var out2 = net.addOutputPin();

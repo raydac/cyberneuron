@@ -2,7 +2,7 @@ package com.igormaznitsa.cyberneuro.core;
 
 public interface CyberNetEntity extends HasUid {
 
-  default boolean isValidInternally() {
+  default boolean isInternallyValid() {
     return true;
   }
 
