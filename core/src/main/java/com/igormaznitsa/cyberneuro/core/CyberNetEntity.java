@@ -1,9 +1,9 @@
 package com.igormaznitsa.cyberneuro.core;
 
-public interface CyberNetEntity extends HasUid {
+public interface CyberNetEntity extends HasInput {
 
-  default boolean isInternallyValid() {
-    return true;
+  default boolean hasInternalErrors() {
+    return false;
   }
 
   CyberNetEntity makeCopy();

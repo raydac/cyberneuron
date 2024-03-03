@@ -4,15 +4,18 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.Objects;
 
-public record CyberLink(HasSingleOutput source, HasInput target, int targetInputIndex) {
+public record CyberLink(HasOutput source, int sourceIndex, HasInput target, int targetIndex) {
   public CyberLink {
     requireNonNull(source);
     requireNonNull(target);
     if (source.equals(target)) {
       throw new IllegalArgumentException("Can't link itself");
     }
-    if (!target.isInputIndexValid(targetInputIndex)) {
-      throw new IndexOutOfBoundsException("Input index is out of bounds");
+    if (!source.isOutputIndexValid(sourceIndex)) {
+      throw new IndexOutOfBoundsException("Output index is invalid");
+    }
+    if (!target.isInputIndexValid(targetIndex)) {
+      throw new IndexOutOfBoundsException("Input index is invalid");
     }
   }
 
@@ -25,13 +28,13 @@ public record CyberLink(HasSingleOutput source, HasInput target, int targetInput
       return false;
     }
     CyberLink cyberLink = (CyberLink) that;
-    return this.targetInputIndex == cyberLink.targetInputIndex
+    return this.targetIndex == cyberLink.targetIndex
         && Objects.equals(this.source, cyberLink.source)
         && Objects.equals(this.target, cyberLink.target);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(this.source, this.target, this.targetInputIndex);
+    return Objects.hash(this.source, this.target, this.targetIndex);
   }
 }

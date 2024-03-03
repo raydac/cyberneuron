@@ -1,7 +1,11 @@
 package com.igormaznitsa.cyberneuro.core;
 
 public interface HasInput extends HasUid {
-  int getInputSize();
+  default int getInputSize() {
+    return 1;
+  }
 
-  boolean isInputIndexValid(int index);
+  default boolean isInputIndexValid(int index) {
+    return index == 0;
+  }
 }

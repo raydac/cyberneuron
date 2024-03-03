@@ -3,7 +3,7 @@ package com.igormaznitsa.cyberneuro.core;
 import java.lang.reflect.Array;
 import java.util.Objects;
 
-public final class CyberNeuron implements CyberNetEntity, HasInput, HasSingleOutput {
+public final class CyberNeuron implements CyberNetEntity, HasOutput {
 
   private static final int THRESHOLD_NO = Byte.MAX_VALUE / 5;
   private static final int THRESHOLD_YES = Byte.MAX_VALUE - THRESHOLD_NO;

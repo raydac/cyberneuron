@@ -2,31 +2,25 @@ package com.igormaznitsa.cyberneuro.core;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toUnmodifiableSet;
-import static java.util.stream.Stream.concat;
 
-import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 @SuppressWarnings({"UnusedReturnValue", "BooleanMethodIsAlwaysInverted"})
-public class CyberNet implements CyberNetEntity, HasInput, HasSingleOutput {
-  private final Map<CyberNetEntity, Set<CyberLink>> internalEntities;
-  private final List<CyberNetInputPin> inputs;
-  private final List<CyberNetOutputPin> outputs;
-
+public class CyberNet implements CyberNetEntity, HasOutput {
+  private final Map<CyberNetEntity, Set<CyberLink>> entities = new LinkedHashMap<>();
   private final long uid;
+  private int inputCount;
+  private int outputCount;
 
   public CyberNet() {
     this.uid = UID_GENERATOR.incrementAndGet();
-    this.internalEntities = new HashMap<>();
-    this.inputs = new ArrayList<>();
-    this.outputs = new ArrayList<>();
   }
 
   private static String makeReadableId(final HasUid entity) {
@@ -45,79 +39,135 @@ public class CyberNet implements CyberNetEntity, HasInput, HasSingleOutput {
     throw new IllegalArgumentException("Unexpected type: " + entity);
   }
 
-  @Override
-  public boolean isInternallyValid() {
-    return this.findErrors().isEmpty();
-  }
-
-  public void put(final CyberNetEntity entity) {
-    if (entity instanceof CyberNetInputPin input) {
-      if (this.inputs.contains(entity)) {
-        throw new IllegalStateException("Input already presented in the network");
-      } else {
-        this.inputs.add(input);
-      }
-    } else if (entity instanceof CyberNetOutputPin output) {
-      if (this.outputs.contains(entity)) {
-        throw new IllegalStateException("Output already presented in the network");
-      } else {
-        this.outputs.add(output);
-      }
-    } else if (this.internalEntities.containsKey(requireNonNull(entity))) {
-      throw new IllegalStateException("Neuron already presented in the network");
+  private static String findDotAttributesForEntity(final CyberNetEntity entity) {
+    if (entity instanceof CyberNet) {
+      return "[color=blue;shape=octagon]";
+    } else if (entity instanceof CyberNeuron) {
+      return "[color=green;shape=oval]";
+    } else if (entity instanceof CyberNetInputPin) {
+      return "[color=red;shape=box]";
+    } else if (entity instanceof CyberNetOutputPin) {
+      return "[color=green;shape=box]";
     } else {
-      this.internalEntities.put(entity, new HashSet<>());
+      return "[color=gray;shape=triangle]";
     }
   }
 
-  public CyberNetOutputPin addOutputPin() {
+  @Override
+  public boolean hasInternalErrors() {
+    return this.entities.entrySet()
+        .stream()
+        .anyMatch(e ->
+            e.getKey().hasInternalErrors()
+                || (!(e.getKey() instanceof CyberNetInputPin) &&
+                this.findFirstFreeInputIndex(e.getKey()) >= 0)
+                ||
+                (e.getKey() instanceof HasOutput out && out.getOutputSize() > e.getValue().size())
+        );
+  }
+
+  public void put(final CyberNetEntity entity) {
+    if (this.entities.containsKey(entity)) {
+      throw new IllegalStateException("Already presented in the network");
+    }
+    this.entities.put(entity, entity instanceof HasOutput ? new HashSet<>() : Set.of());
+    if (entity instanceof CyberNetInputPin) {
+      this.inputCount++;
+    }
+    if (entity instanceof CyberNetOutputPin) {
+      this.outputCount++;
+    }
+  }
+
+  public CyberNetOutputPin addOutput() {
     final CyberNetOutputPin newOutput = CyberNetOutputPin.makeNew();
-    this.outputs.add(newOutput);
+    this.put(newOutput);
     return newOutput;
   }
 
   public CyberNetInputPin addInputPin() {
     final CyberNetInputPin newInput = CyberNetInputPin.makeNew();
-    this.inputs.add(newInput);
+    this.put(newInput);
     return newInput;
   }
 
   private boolean contains(final CyberNetEntity entity) {
-    if (entity instanceof CyberNetInputPin) {
-      return this.inputs.contains(entity);
-    }
-
-    if (entity instanceof CyberNetOutputPin) {
-      return this.outputs.contains(entity);
-    }
-
-    return this.internalEntities.containsKey(entity);
+    return this.entities.containsKey(entity);
   }
 
-  public CyberLink link(
-      final CyberNetEntity src,
-      final CyberNetEntity target,
+  public <S extends CyberNetEntity & HasOutput, T extends CyberNetEntity> CyberLink link(
+      final S src,
+      final int outputIndex,
+      final T target,
       final int targetIndex
   ) {
-    if (!this.contains(src) && !this.contains(target)) {
-      throw new NoSuchElementException("Can't find entity among registered ones");
+    if (outputIndex < 0 || outputIndex >= src.getOutputSize()) {
+      throw new IllegalArgumentException("Output index is wrong: " + outputIndex);
+    }
+    if (targetIndex < 0 || targetIndex >= target.getInputSize()) {
+      throw new IllegalArgumentException("Input index is wrong: " + targetIndex);
     }
 
-    if (this.hasLink(target, targetIndex)) {
-      throw new IllegalStateException("Target input already busy");
+    if (this.entities.entrySet().stream().flatMap(x -> x.getValue().stream())
+        .anyMatch(x -> x.target().equals(target) && x.targetIndex() == targetIndex)) {
+      throw new IllegalStateException("Input with index " + targetIndex + " is already linked");
     }
+    final CyberLink link = new CyberLink(src, outputIndex, target, targetIndex);
+    this.entities.get(src).add(link);
+    return link;
+  }
 
-    if (!(src instanceof HasSingleOutput)) {
-      throw new IllegalStateException("Source must have output feature");
+  public <S extends CyberNetEntity & HasOutput, T extends CyberNetEntity> CyberLink link(
+      final S src,
+      final T target,
+      final int targetIndex
+  ) {
+    return this.link(src, findFirstPreferableOutputIndex(src), target, targetIndex);
+  }
+
+  public <S extends CyberNetEntity & HasOutput, T extends CyberNetEntity> CyberLink link(
+      final S src,
+      final int outputIndex,
+      final T target
+  ) {
+    return this.link(src, outputIndex, target, findFirstFreeInputIndex(target));
+  }
+
+  public <S extends CyberNetEntity & HasOutput, T extends CyberNetEntity> CyberLink link(
+      final S src,
+      final T target
+  ) {
+    return this.link(src, findFirstPreferableOutputIndex(src), target,
+        findFirstFreeInputIndex(target));
+  }
+
+  public <A extends CyberNetEntity & HasOutput> int findFirstPreferableOutputIndex(
+      final A a) {
+    if (!this.entities.containsKey(a)) {
+      throw new IllegalStateException("Argument is not among network entities");
     }
-
-    if (!(target instanceof HasInput)) {
-      throw new IllegalStateException("Source must have input feature");
+    if (a.getOutputSize() == 1) {
+      return 0;
     }
+    final Set<CyberLink> found = this.entities.get(a);
+    return IntStream.range(0, a.getOutputSize())
+        .filter(i -> found.stream().noneMatch(z -> z.sourceIndex() == i))
+        .findFirst()
+        .orElse(0);
+  }
 
-    var newLink = new CyberLink((HasSingleOutput) src, (HasInput) target, targetIndex);
-    this.internalEntities.computeIfAbsent(src, x -> new HashSet<>()).add(newLink);
-    return newLink;
+  public int findFirstFreeInputIndex(final CyberNetEntity input) {
+    if (!this.entities.containsKey(input)) {
+      throw new IllegalStateException("Argument is not among network entities");
+    }
+    final BitSet bitSet = new BitSet(input.getInputSize());
+    this.entities.entrySet().stream()
+        .flatMap(x -> x.getValue().stream())
+        .filter(x -> x.target().equals(input))
+        .forEach(x -> bitSet.set(x.targetIndex()));
+
+    final int freeIndex = bitSet.nextClearBit(0);
+    return freeIndex < input.getInputSize() ? freeIndex : -1;
   }
 
   @Override
@@ -125,30 +175,26 @@ public class CyberNet implements CyberNetEntity, HasInput, HasSingleOutput {
     final CyberNet copyToReturn = new CyberNet();
 
     final Map<Long, CyberNetEntity> mapOldIdToCopy = new HashMap<>();
-    this.inputs.forEach(x -> {
-      var newInput = x.makeCopy();
-      copyToReturn.inputs.add((CyberNetInputPin) newInput);
-      mapOldIdToCopy.put(x.getUid(), newInput);
+
+    this.entities.forEach((x, l) -> {
+      var entityCopy = x.makeCopy();
+      copyToReturn.put(entityCopy);
+      mapOldIdToCopy.put(x.getUid(), entityCopy);
     });
 
-    this.outputs.forEach(x -> {
-      var newOutput = x.makeCopy();
-      copyToReturn.outputs.add((CyberNetOutputPin) newOutput);
-      mapOldIdToCopy.put(x.getUid(), newOutput);
-    });
-
-    this.internalEntities.keySet()
+    this.entities.keySet()
         .forEach(x -> {
           final CyberNetEntity copied = x.makeCopy();
           mapOldIdToCopy.put(x.getUid(), copied);
-          copyToReturn.internalEntities.put(copied, new HashSet<>());
+          copyToReturn.entities.put(copied, new HashSet<>());
         });
 
-    this.internalEntities.forEach((key, value) -> {
+    this.entities.forEach((key, value) -> {
       final CyberNetEntity newEntity = requireNonNull(mapOldIdToCopy.get(key.getUid()));
       for (final CyberLink link : value) {
         final CyberNetEntity newTarget = requireNonNull(mapOldIdToCopy.get(link.target().getUid()));
-        copyToReturn.link(newEntity, newTarget, link.targetInputIndex());
+        copyToReturn.link((CyberNetEntity & HasOutput) newEntity, link.sourceIndex(), newTarget,
+            link.targetIndex());
       }
     });
 
@@ -156,69 +202,8 @@ public class CyberNet implements CyberNetEntity, HasInput, HasSingleOutput {
   }
 
   public Set<CyberNetEntity> findErrors() {
-    var findErrorInputs = this.inputs.stream()
-        .filter(x -> {
-          var links = this.internalEntities.get(x);
-          return links == null || links.isEmpty();
-        });
-
-    var findErrorOutputs = this.outputs.stream()
-        .filter(x -> {
-          var foundSources = this.internalEntities.entrySet().stream()
-              .flatMap(z -> z.getValue().stream())
-              .filter(z -> x.equals(z.target()))
-              .toList();
-          return foundSources.size() != 1;
-        });
-
-    var findErrorInternalEntities = this.internalEntities.keySet().stream()
-        .filter(entity -> {
-          final Map<Integer, Integer> inputUse = new HashMap<>();
-          var outputUse = new AtomicInteger(0);
-          this.internalEntities.entrySet().stream()
-              .flatMap(z -> z.getValue().stream())
-              .filter(z -> entity.equals(z.target()) || entity.equals(z.source()))
-              .forEach(z -> {
-                if (entity.equals(z.target())) {
-                  inputUse.merge(z.targetInputIndex(), 1, Integer::sum);
-                }
-                if (entity.equals(z.source())) {
-                  outputUse.incrementAndGet();
-                }
-              });
-          return outputUse.get() == 0 ||
-              entity instanceof HasInput hasInput && inputUse.size() < hasInput.getInputSize();
-        });
-
-    var findInternallyInvalid = this.internalEntities.keySet().stream()
-        .filter(x -> !x.isInternallyValid());
-
-    return concat(findErrorInputs,
-        concat(findInternallyInvalid,
-            concat(
-                findErrorOutputs,
-                findErrorInternalEntities
-            ))).collect(
-        toUnmodifiableSet());
-  }
-
-  public boolean isValid() {
-    return this.findErrors().isEmpty();
-  }
-
-  public boolean hasLink(final CyberNetEntity entity, final int inputIndex) {
-    if (entity instanceof CyberNeuron) {
-      return this.internalEntities.values().stream()
-          .flatMap(Collection::stream)
-          .anyMatch(x -> x.target().equals(entity)
-              && x.targetInputIndex() == inputIndex);
-    } else if (entity instanceof CyberNetOutputPin) {
-      return this.internalEntities.values().stream().flatMap(Collection::stream)
-          .anyMatch(x -> x.target().equals(entity));
-    } else {
-      throw new IllegalArgumentException(
-          "Not allowed input entity type: " + entity.getClass().getName());
-    }
+    return this.entities.keySet().stream().filter(x -> !x.hasInternalErrors())
+        .collect(toUnmodifiableSet());
   }
 
   public String makeDotDiagram() {
@@ -231,34 +216,19 @@ public class CyberNet implements CyberNetEntity, HasInput, HasSingleOutput {
 
     final Map<HasUid, String> processedEntities = new HashMap<>();
 
-    this.inputs.forEach(x -> processedEntities.computeIfAbsent(x, k -> {
-      final String id = makeReadableId(k);
-      builder.append('\"').append(id).append("\" [color=green;shape=box];").append(eol);
-      return id;
-    }));
+    this.entities.keySet().stream()
+        .forEach(x -> {
+          final String id = makeReadableId(x);
+          final String attributes = findDotAttributesForEntity(x);
+          builder.append('\"').append(id).append("\" ").append(attributes).append(';').append(eol);
+        });
 
-    this.outputs.forEach(x -> processedEntities.computeIfAbsent(x, k -> {
-      final String id = makeReadableId(k);
-      builder.append('\"').append(id).append("\" [color=red;shape=box];").append(eol);
-      return id;
-    }));
-
-    this.internalEntities.entrySet().stream()
-        .filter(e -> !processedEntities.containsKey(e.getKey()))
-        .filter(e -> e.getKey() instanceof CyberNeuron)
-        .forEach(e -> processedEntities.computeIfAbsent(e.getKey(), k -> {
-          final String id = makeReadableId(k);
-              builder.append('\"').append(id).append("\" [color=blue;shape=oval];").append(eol);
-              return id;
-            })
-        );
-
-    this.internalEntities.values().stream().flatMap(Collection::stream)
+    this.entities.values().stream().flatMap(Collection::stream)
         .forEach(l -> {
           final String idSource = processedEntities.get(l.source());
           final String idTarget = processedEntities.get(l.target());
           builder.append('\"').append(idSource).append("\" -> \"").append(idTarget)
-              .append("\" [fontsize=8;label=\"").append(l.targetInputIndex()).append("\"];")
+              .append("\" [fontsize=8;label=\"").append(l.targetIndex()).append("\"];")
               .append(eol);
         });
 
@@ -273,13 +243,23 @@ public class CyberNet implements CyberNetEntity, HasInput, HasSingleOutput {
   }
 
   @Override
+  public int getOutputSize() {
+    return this.outputCount;
+  }
+
+  @Override
+  public boolean isOutputIndexValid(int index) {
+    return index >= 0 && index < this.outputCount;
+  }
+
+  @Override
   public int getInputSize() {
-    return this.inputs.size();
+    return this.inputCount;
   }
 
   @Override
   public boolean isInputIndexValid(int index) {
-    return index >= 0 && index < this.inputs.size();
+    return index >= 0 && index < this.inputCount;
   }
 
 }

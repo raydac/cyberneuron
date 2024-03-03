@@ -22,7 +22,7 @@ class CyberNetTest {
     var input1 = net.addInputPin();
     var input2 = net.addInputPin();
     var input3 = net.addInputPin();
-    var out1 = net.addOutputPin();
+    var out1 = net.addOutput();
 
     var neuron1 = CyberNeuron.of(3, 1);
     net.put(neuron1);
@@ -31,7 +31,7 @@ class CyberNetTest {
     net.link(input2, neuron1, 1);
     net.link(neuron1, out1, 0);
 
-    assertFalse(net.isValid());
+    assertTrue(net.hasInternalErrors());
   }
 
   @Test
@@ -40,7 +40,7 @@ class CyberNetTest {
     var input1 = net.addInputPin();
     var input2 = net.addInputPin();
     var neuron1 = CyberNeuron.of(2, 1);
-    var out1 = net.addOutputPin();
+    var out1 = net.addOutput();
 
     net.put(neuron1);
 
@@ -64,7 +64,7 @@ class CyberNetTest {
 
     net.put(neuron1);
 
-    var out1 = net.addOutputPin();
+    var out1 = net.addOutput();
 
     net.link(input1, neuron1, 0);
     net.link(input2, neuron1, 1);
@@ -72,7 +72,7 @@ class CyberNetTest {
 
     net.link(neuron1, out1, 0);
 
-    assertTrue(net.isValid());
+    assertFalse(net.hasInternalErrors());
 
     logDiagram("Single neuron network", net);
   }
@@ -95,8 +95,8 @@ class CyberNetTest {
     net.put(neuron3);
     net.put(neuron4);
 
-    var out1 = net.addOutputPin();
-    var out2 = net.addOutputPin();
+    var out1 = net.addOutput();
+    var out2 = net.addOutput();
 
     net.link(input1, neuron1, 0);
     net.link(input2, neuron1, 1);
@@ -115,7 +115,7 @@ class CyberNetTest {
     net.link(neuron3, out1, 0);
     net.link(neuron4, out2, 0);
 
-    assertTrue(net.isValid());
+    assertFalse(net.hasInternalErrors());
 
     logDiagram("3x2 network", net);
   }
