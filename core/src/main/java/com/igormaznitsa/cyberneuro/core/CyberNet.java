@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -260,6 +261,20 @@ public class CyberNet implements CyberNetEntity, HasOutput {
   @Override
   public boolean isInputIndexValid(int index) {
     return index >= 0 && index < this.inputCount;
+  }
+
+  public List<CyberLink> findIncomingLinks(final HasInput entity) {
+    return this.entities.values().stream()
+        .flatMap(Collection::stream)
+        .filter(x -> x.target().equals(entity))
+        .toList();
+  }
+
+  public List<CyberLink> findOutgoingLinks(final HasOutput entity) {
+    return this.entities.values().stream()
+        .flatMap(Collection::stream)
+        .filter(x -> x.source().equals(entity))
+        .toList();
   }
 
 }
