@@ -1,5 +1,7 @@
 package com.igormaznitsa.cyberneuro.core;
 
+import static java.lang.String.format;
+
 import java.lang.reflect.Array;
 import java.util.Objects;
 
@@ -128,14 +130,14 @@ public final class CyberNeuron implements CyberNetEntity, HasOutput, HasLock {
     }
   }
 
-  public void teach(final int[] inputs, final LearnStrategy learnStrategy,
+  public void teach(final int[] inputVector, final LearnStrategy learnStrategy,
                     final ConfidenceDegree expectedConfidence) {
     this.assertNonLocked();
-    if (this.inputSize != inputs.length) {
+    if (this.inputSize != inputVector.length) {
       throw new IllegalArgumentException(
-          "Wrong input size: " + this.inputSize + " != " + inputs.length);
+          format("Wrong input size: %d != %d", this.inputSize, inputVector.length));
     }
-    if (this.check(inputs) == expectedConfidence) {
+    if (this.check(inputVector) == expectedConfidence) {
       return;
     }
 
@@ -166,7 +168,7 @@ public final class CyberNeuron implements CyberNetEntity, HasOutput, HasLock {
         throw new IllegalArgumentException("Unsupported confidence: " + expectedConfidence);
     }
 
-    final int current = this.calc(inputs);
+    final int current = this.calc(inputVector);
     final int diff;
     if (current < expectedMin) {
       diff = expectedMin - current;
@@ -176,7 +178,7 @@ public final class CyberNeuron implements CyberNetEntity, HasOutput, HasLock {
       throw new IllegalStateException("Unexpected state");
     }
 
-    learnStrategy.accept(this, inputs, diff);
+    learnStrategy.accept(this, inputVector, diff);
   }
 
   public ConfidenceDegree check(final int[] inputs) {
