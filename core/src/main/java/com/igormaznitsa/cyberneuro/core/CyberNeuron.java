@@ -89,8 +89,8 @@ public final class CyberNeuron implements CyberNetEntity, HasOutput, HasLock {
     if (object == this) {
       return true;
     }
-    return object instanceof CyberNeuron
-        && (this.uid == ((CyberNeuron) object).uid);
+    return object instanceof CyberNeuron cyberNeuron
+        && (this.uid == cyberNeuron.uid);
   }
 
   public int getRowLength() {
@@ -106,6 +106,7 @@ public final class CyberNeuron implements CyberNetEntity, HasOutput, HasLock {
     this.table[index] = (byte) value;
   }
 
+  @Override
   public int getInputSize() {
     return this.inputSize;
   }
