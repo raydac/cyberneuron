@@ -9,12 +9,12 @@ public class CyberNetOutputPin implements CyberNetEntity {
     this.uid = uid;
   }
 
-  @Override
-  public CyberNetEntity makeCopy() {
+  static CyberNetOutputPin makeNew() {
     return new CyberNetOutputPin(UID_GENERATOR.incrementAndGet());
   }
 
-  static CyberNetOutputPin makeNew() {
+  @Override
+  public CyberNetEntity makeCopy() {
     return new CyberNetOutputPin(UID_GENERATOR.incrementAndGet());
   }
 

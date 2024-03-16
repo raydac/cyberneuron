@@ -3,7 +3,7 @@ package com.igormaznitsa.cyberneuro.core;
 import java.lang.reflect.Array;
 import java.util.Objects;
 
-public final class CyberNeuron implements CyberNetEntity, HasOutput {
+public final class CyberNeuron implements CyberNetEntity, HasOutput, HasLock {
 
   private static final int THRESHOLD_NO = Byte.MAX_VALUE / 5;
   private static final int THRESHOLD_YES = Byte.MAX_VALUE - THRESHOLD_NO;
@@ -13,13 +13,7 @@ public final class CyberNeuron implements CyberNetEntity, HasOutput {
   private final long uid;
   private final byte[] table;
 
-  @Override
-  public CyberNetEntity makeCopy() {
-    final CyberNeuron result =
-        new CyberNeuron(UID_GENERATOR.incrementAndGet(), this.inputSize, this.rowLength - 1);
-    System.arraycopy(this.table, 0, result.table, 0, this.table.length);
-    return result;
-  }
+  private boolean locked;
 
   public CyberNeuron(
       final long uid,
@@ -52,6 +46,24 @@ public final class CyberNeuron implements CyberNetEntity, HasOutput {
       seed = (seed * 73129 + 95121) % 100000;
       array[i] = (byte) seed;
     }
+  }
+
+  @Override
+  public void setLock(boolean flag) {
+    this.locked = flag;
+  }
+
+  public boolean isLocked() {
+    return this.locked;
+  }
+
+  @Override
+  public CyberNetEntity makeCopy() {
+    final CyberNeuron result =
+        new CyberNeuron(UID_GENERATOR.incrementAndGet(), this.inputSize, this.rowLength - 1);
+    result.locked = this.locked;
+    System.arraycopy(this.table, 0, result.table, 0, this.table.length);
+    return result;
   }
 
   @Override
@@ -90,6 +102,7 @@ public final class CyberNeuron implements CyberNetEntity, HasOutput {
   }
 
   void setTableValue(final int index, final int value) {
+    this.assertNonLocked();
     this.table[index] = (byte) value;
   }
 
@@ -107,7 +120,8 @@ public final class CyberNeuron implements CyberNetEntity, HasOutput {
   }
 
   public void fill(final byte[] values) {
-    assertArraySize(values);
+    this.assertNonLocked();
+    this.assertArraySize(values);
     for (int i = 0; i < values.length; i++) {
       this.setTableValue(i, values[i]);
     }
@@ -115,6 +129,7 @@ public final class CyberNeuron implements CyberNetEntity, HasOutput {
 
   public void teach(final int[] inputs, final LearnStrategy learnStrategy,
                     final ConfidenceDegree expectedConfidence) {
+    this.assertNonLocked();
     if (this.inputSize != inputs.length) {
       throw new IllegalArgumentException(
           "Wrong input size: " + this.inputSize + " != " + inputs.length);

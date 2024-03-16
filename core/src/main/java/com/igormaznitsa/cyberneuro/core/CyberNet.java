@@ -14,11 +14,13 @@ import java.util.Set;
 import java.util.stream.IntStream;
 
 @SuppressWarnings({"UnusedReturnValue", "BooleanMethodIsAlwaysInverted"})
-public class CyberNet implements CyberNetEntity, HasOutput {
+public class CyberNet implements CyberNetEntity, HasOutput, HasLock {
   private final Map<CyberNetEntity, Set<CyberLink>> entities = new LinkedHashMap<>();
   private final long uid;
   private int inputCount;
   private int outputCount;
+
+  private boolean lock;
 
   public CyberNet() {
     this.uid = UID_GENERATOR.incrementAndGet();
@@ -55,6 +57,16 @@ public class CyberNet implements CyberNetEntity, HasOutput {
   }
 
   @Override
+  public boolean isLocked() {
+    return this.lock;
+  }
+
+  @Override
+  public void setLock(boolean flag) {
+    this.lock = flag;
+  }
+
+  @Override
   public boolean hasInternalErrors() {
     return this.entities.entrySet()
         .stream()
@@ -68,6 +80,7 @@ public class CyberNet implements CyberNetEntity, HasOutput {
   }
 
   public void put(final CyberNetEntity entity) {
+    this.assertNonLocked();
     if (this.entities.containsKey(entity)) {
       throw new IllegalStateException("Already presented in the network");
     }
@@ -81,19 +94,17 @@ public class CyberNet implements CyberNetEntity, HasOutput {
   }
 
   public CyberNetOutputPin addOutput() {
+    this.assertNonLocked();
     final CyberNetOutputPin newOutput = CyberNetOutputPin.makeNew();
     this.put(newOutput);
     return newOutput;
   }
 
   public CyberNetInputPin addInputPin() {
+    this.assertNonLocked();
     final CyberNetInputPin newInput = CyberNetInputPin.makeNew();
     this.put(newInput);
     return newInput;
-  }
-
-  private boolean contains(final CyberNetEntity entity) {
-    return this.entities.containsKey(entity);
   }
 
   public <S extends CyberNetEntity & HasOutput, T extends CyberNetEntity> CyberLink link(
@@ -102,6 +113,7 @@ public class CyberNet implements CyberNetEntity, HasOutput {
       final T target,
       final int targetIndex
   ) {
+    this.assertNonLocked();
     if (outputIndex < 0 || outputIndex >= src.getOutputSize()) {
       throw new IllegalArgumentException("Output index is wrong: " + outputIndex);
     }
@@ -199,6 +211,7 @@ public class CyberNet implements CyberNetEntity, HasOutput {
       }
     });
 
+    copyToReturn.lock = this.lock;
     return copyToReturn;
   }
 
