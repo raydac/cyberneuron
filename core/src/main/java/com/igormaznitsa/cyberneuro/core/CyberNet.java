@@ -1,8 +1,10 @@
 package com.igormaznitsa.cyberneuro.core;
 
+import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
+import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.HashMap;
@@ -14,7 +16,7 @@ import java.util.Set;
 import java.util.stream.IntStream;
 
 @SuppressWarnings({"UnusedReturnValue", "BooleanMethodIsAlwaysInverted"})
-public class CyberNet implements CyberNetEntity, HasOutput, HasLock {
+public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsCheckable {
   private final Map<CyberNetEntity, Set<CyberLink>> entities = new LinkedHashMap<>();
   private final long uid;
   private int inputCount;
@@ -290,4 +292,66 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock {
         .toList();
   }
 
+  public List<List<CyberLink>> findWholeChain(final HasInput entity) {
+    final List<List<CyberLink>> result = new ArrayList<>();
+    List<CyberLink> found = this.findIncomingLinks(entity);
+
+    while (!found.isEmpty()) {
+      result.addFirst(found);
+      List<CyberLink> newFound = new ArrayList<>();
+      for (final CyberLink link : found) {
+        newFound.addAll(findIncomingLinks(link.target()));
+      }
+      found = newFound;
+    }
+
+    return result;
+  }
+
+  @Override
+  public List<ConfidenceDegree> check(final int[] inputs) {
+    if (inputs.length != this.inputCount) {
+      throw new IllegalArgumentException(
+          format("Wrong input length, detected %d but expected %d", inputs.length,
+              this.inputCount));
+    }
+
+    final List<CyberNetOutputPin> allOutputs = this.entities.keySet().stream()
+        .filter(
+            CyberNetOutputPin.class::isInstance)
+        .map(CyberNetOutputPin.class::cast)
+        .toList();
+
+    if (allOutputs.size() != this.outputCount) {
+      throw new IllegalStateException(
+          format("Can't find output pins, detected %d output pins but expected %d",
+              allOutputs.size(),
+              this.outputCount));
+    }
+
+    final List<CyberNetInputPin> allInputs = this.entities.keySet().stream()
+        .filter(
+            CyberNetInputPin.class::isInstance)
+        .map(CyberNetInputPin.class::cast)
+        .toList();
+
+    if (allInputs.size() != this.inputCount) {
+      throw new IllegalStateException(
+          format("Can't find input pins, detected %d input pins but expected %d", allInputs.size(),
+              this.inputCount));
+    }
+
+    final Map<CyberNetEntity, Integer> calculatedOutput = new HashMap<>();
+    for (int i = 0; i < allInputs.size(); i++) {
+      calculatedOutput.put(allInputs.get(i), inputs[i]);
+    }
+
+    for (final CyberNetOutputPin outputPin : allOutputs) {
+      final List<List<CyberLink>> chain = this.findWholeChain(outputPin);
+      for (final List<CyberLink> lst : chain) {
+
+      }
+    }
+
+  }
 }

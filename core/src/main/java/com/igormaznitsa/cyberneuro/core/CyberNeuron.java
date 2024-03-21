@@ -3,9 +3,10 @@ package com.igormaznitsa.cyberneuro.core;
 import static java.lang.String.format;
 
 import java.lang.reflect.Array;
+import java.util.List;
 import java.util.Objects;
 
-public final class CyberNeuron implements CyberNetEntity, HasOutput, HasLock {
+public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsCheckable {
 
   private static final int THRESHOLD_NO = Byte.MAX_VALUE / 5;
   private static final int THRESHOLD_YES = Byte.MAX_VALUE - THRESHOLD_NO;
@@ -137,7 +138,7 @@ public final class CyberNeuron implements CyberNetEntity, HasOutput, HasLock {
       throw new IllegalArgumentException(
           format("Wrong input size: %d != %d", this.inputSize, inputVector.length));
     }
-    if (this.check(inputVector) == expectedConfidence) {
+    if (this.check(inputVector).getFirst() == expectedConfidence) {
       return;
     }
 
@@ -181,8 +182,9 @@ public final class CyberNeuron implements CyberNetEntity, HasOutput, HasLock {
     learnStrategy.accept(this, inputVector, diff);
   }
 
-  public ConfidenceDegree check(final int[] inputs) {
-    return this.check(0, inputs);
+  @Override
+  public List<ConfidenceDegree> check(final int[] inputs) {
+    return List.of(this.check(0, inputs));
   }
 
   public ConfidenceDegree check(final int offset, final int[] inputs) {
