@@ -16,7 +16,7 @@ import java.util.Set;
 import java.util.stream.IntStream;
 
 @SuppressWarnings({"UnusedReturnValue", "BooleanMethodIsAlwaysInverted"})
-public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsCheckable {
+public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable {
   private final Map<CyberNetEntity, Set<CyberLink>> entities = new LinkedHashMap<>();
   private final long uid;
   private int inputCount;
@@ -309,7 +309,7 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsCheckable
   }
 
   @Override
-  public List<ConfidenceDegree> check(final int[] inputs) {
+  public List<ConfidenceDegree> activate(final int[] inputs) {
     if (inputs.length != this.inputCount) {
       throw new IllegalArgumentException(
           format("Wrong input length, detected %d but expected %d", inputs.length,
@@ -341,17 +341,7 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsCheckable
               this.inputCount));
     }
 
-    final Map<CyberNetEntity, Integer> calculatedOutput = new HashMap<>();
-    for (int i = 0; i < allInputs.size(); i++) {
-      calculatedOutput.put(allInputs.get(i), inputs[i]);
-    }
-
-    for (final CyberNetOutputPin outputPin : allOutputs) {
-      final List<List<CyberLink>> chain = this.findWholeChain(outputPin);
-      for (final List<CyberLink> lst : chain) {
-
-      }
-    }
-
+    //TODO
   }
+
 }

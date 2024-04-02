@@ -6,7 +6,7 @@ import java.lang.reflect.Array;
 import java.util.List;
 import java.util.Objects;
 
-public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsCheckable {
+public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActivable {
 
   private static final int THRESHOLD_NO = Byte.MAX_VALUE / 5;
   private static final int THRESHOLD_YES = Byte.MAX_VALUE - THRESHOLD_NO;
@@ -138,7 +138,7 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsChecka
       throw new IllegalArgumentException(
           format("Wrong input size: %d != %d", this.inputSize, inputVector.length));
     }
-    if (this.check(inputVector).getFirst() == expectedConfidence) {
+    if (this.activate(inputVector).getFirst() == expectedConfidence) {
       return;
     }
 
@@ -183,7 +183,7 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsChecka
   }
 
   @Override
-  public List<ConfidenceDegree> check(final int[] inputs) {
+  public List<ConfidenceDegree> activate(final int[] inputs) {
     return List.of(this.check(0, inputs));
   }
 
