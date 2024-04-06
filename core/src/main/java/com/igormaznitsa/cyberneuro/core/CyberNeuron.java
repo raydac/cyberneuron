@@ -138,7 +138,7 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActiva
       throw new IllegalArgumentException(
           format("Wrong input size: %d != %d", this.inputSize, inputVector.length));
     }
-    if (this.activate(inputVector).getFirst() == expectedConfidence) {
+    if (this.activateAsConfidence(inputVector).getFirst() == expectedConfidence) {
       return;
     }
 
@@ -183,7 +183,11 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActiva
   }
 
   @Override
-  public List<ConfidenceDegree> activate(final int[] inputs) {
+  public int[] activate(final int[] inputs) {
+    return new int[] {calc(0, inputs)};
+  }
+
+  public List<ConfidenceDegree> activateAsConfidence(final int[] inputs) {
     return List.of(this.check(0, inputs));
   }
 

@@ -2,7 +2,7 @@ package com.igormaznitsa.cyberneuro.core;
 
 import java.util.Objects;
 
-public class CyberNetOutputPin implements CyberNetEntity {
+public class CyberNetOutputPin implements CyberNetEntity, IsActivable, HasOutput, IsTerminator {
   private final long uid;
 
   CyberNetOutputPin(final long uid) {
@@ -38,6 +38,11 @@ public class CyberNetOutputPin implements CyberNetEntity {
   @Override
   public int hashCode() {
     return Objects.hash(this.uid);
+  }
+
+  @Override
+  public int[] activate(int[] inputs) {
+    return inputs;
   }
 
 }

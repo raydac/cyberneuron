@@ -12,6 +12,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -68,17 +69,14 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     this.lock = flag;
   }
 
-  @Override
-  public boolean hasInternalErrors() {
-    return this.entities.entrySet()
-        .stream()
-        .anyMatch(e ->
-            e.getKey().hasInternalErrors()
-                || (!(e.getKey() instanceof CyberNetInputPin) &&
-                this.findFirstFreeInputIndex(e.getKey()) >= 0)
-                ||
-                (e.getKey() instanceof HasOutput out && out.getOutputSize() > e.getValue().size())
-        );
+  private static void addValueToResolved(
+      final Map<ResultEntity, Integer> map,
+      final ResultEntityCache resultEntityCache,
+      final HasOutput hasOutput,
+      final int[] outputs) {
+    for (int p = 0; p < hasOutput.getOutputSize(); p++) {
+      map.put(resultEntityCache.find(hasOutput, p), outputs[p]);
+    }
   }
 
   public void put(final CyberNetEntity entity) {
@@ -278,17 +276,32 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     return index >= 0 && index < this.inputCount;
   }
 
-  public List<CyberLink> findIncomingLinks(final HasInput entity) {
-    return this.entities.values().stream()
-        .flatMap(Collection::stream)
-        .filter(x -> x.target().equals(entity))
-        .toList();
+  @Override
+  public boolean hasInternalErrors() {
+    return this.entities.entrySet()
+        .stream()
+        .anyMatch(e ->
+            e.getKey().hasInternalErrors()
+                || (!(e.getKey() instanceof CyberNetInputPin) &&
+                this.findFirstFreeInputIndex(e.getKey()) >= 0)
+                ||
+                ((e.getKey() instanceof HasOutput out && !(out instanceof IsTerminator))
+                    && out.getOutputSize() > e.getValue().size())
+        );
   }
 
   public List<CyberLink> findOutgoingLinks(final HasOutput entity) {
     return this.entities.values().stream()
         .flatMap(Collection::stream)
         .filter(x -> x.source().equals(entity))
+        .toList();
+  }
+
+  public List<CyberLink> findIncomingLinks(final HasInput entity) {
+    return this.entities.values().stream()
+        .flatMap(Collection::stream)
+        .filter(x -> x.target().equals(entity))
+        .sorted()
         .toList();
   }
 
@@ -300,7 +313,9 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
       result.addFirst(found);
       List<CyberLink> newFound = new ArrayList<>();
       for (final CyberLink link : found) {
-        newFound.addAll(findIncomingLinks(link.target()));
+        if (link.source() instanceof HasInput input) {
+          newFound.addAll(findIncomingLinks(input));
+        }
       }
       found = newFound;
     }
@@ -309,7 +324,7 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
   }
 
   @Override
-  public List<ConfidenceDegree> activate(final int[] inputs) {
+  public int[] activate(final int[] inputs) {
     if (inputs.length != this.inputCount) {
       throw new IllegalArgumentException(
           format("Wrong input length, detected %d but expected %d", inputs.length,
@@ -341,7 +356,45 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
               this.inputCount));
     }
 
-    //TODO
+    final ResultEntityCache resultEntityCache = new ResultEntityCache();
+    final Map<ResultEntity, Integer> resolved = new HashMap<>();
+
+    for (int i = 0; i < inputs.length; i++) {
+      addValueToResolved(
+          resolved,
+          resultEntityCache,
+          allInputs.get(i),
+          new int[] {inputs[i]}
+      );
+    }
+
+    allOutputs.stream()
+        .flatMap(x -> this.findWholeChain(x).stream().flatMap(Collection::stream))
+        .forEach(link -> {
+          if (link.target() instanceof IsActivable activable) {
+            final int[] calculatedInputs = this.findIncomingLinks(link.target()).stream()
+                .mapToInt(x -> Objects.requireNonNull(
+                    resolved.get(resultEntityCache.find(x.source(), x.sourceIndex()))))
+                .toArray();
+            addValueToResolved(resolved, resultEntityCache, (HasOutput) activable,
+                activable.activate(calculatedInputs));
+          }
+        });
+
+    return allOutputs.stream().mapToInt(x -> resolved.get(resultEntityCache.find(x, 0))).toArray();
+  }
+
+  private record ResultEntity(HasOutput output, int outPinIndex) {
+  }
+
+  private static class ResultEntityCache {
+    private final Map<HasOutput, Map<Integer, ResultEntity>> cache = new HashMap<>();
+
+    public ResultEntity find(final HasOutput entity, final int index) {
+      final Map<Integer, ResultEntity> indexMap =
+          this.cache.computeIfAbsent(entity, f -> new HashMap<>());
+      return indexMap.computeIfAbsent(index, i -> new ResultEntity(entity, i));
+    }
   }
 
 }

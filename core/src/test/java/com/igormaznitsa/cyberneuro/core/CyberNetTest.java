@@ -1,5 +1,6 @@
 package com.igormaznitsa.cyberneuro.core;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -59,20 +60,37 @@ class CyberNetTest {
     var input1 = net.addInputPin();
     var input2 = net.addInputPin();
     var input3 = net.addInputPin();
+    var input4 = net.addInputPin();
+    var input5 = net.addInputPin();
+    var input6 = net.addInputPin();
 
-    var neuron1 = CyberNeuron.of(3, 1);
+    final CyberNeuron neuron = CyberNeuron.of(6, 3);
+    neuron.fill(new byte[] {
+        0, 15, 0, 0,
+        0, 0, 0, 20,
+        14, 0, 0, 0,
+        0, 18, 0, 0,
+        0, 0, 16, 0,
+        0, 17, 0, 0
+    });
 
-    net.put(neuron1);
+    net.put(neuron);
 
     var out1 = net.addOutput();
 
-    net.link(input1, neuron1, 0);
-    net.link(input2, neuron1, 1);
-    net.link(input3, neuron1, 2);
+    net.link(input1, neuron, 0);
+    net.link(input2, neuron, 1);
+    net.link(input3, neuron, 2);
+    net.link(input4, neuron, 3);
+    net.link(input5, neuron, 4);
+    net.link(input6, neuron, 5);
 
-    net.link(neuron1, out1, 0);
+    net.link(neuron, out1, 0);
 
     assertFalse(net.hasInternalErrors());
+
+    assertEquals(neuron.calc(new int[] {1, 3, 0, 1, 2, 1}),
+        net.activate(new int[] {1, 3, 0, 1, 2, 1})[0]);
 
     logDiagram("Single neuron network", net);
   }

@@ -4,7 +4,8 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.Objects;
 
-public record CyberLink(HasOutput source, int sourceIndex, HasInput target, int targetIndex) {
+public record CyberLink(HasOutput source, int sourceIndex, HasInput target, int targetIndex)
+    implements Comparable<CyberLink> {
   public CyberLink {
     requireNonNull(source);
     requireNonNull(target);
@@ -36,5 +37,10 @@ public record CyberLink(HasOutput source, int sourceIndex, HasInput target, int 
   @Override
   public int hashCode() {
     return Objects.hash(this.source, this.target, this.targetIndex);
+  }
+
+  @Override
+  public int compareTo(final CyberLink that) {
+    return Integer.compare(this.targetIndex, that.targetIndex);
   }
 }
