@@ -102,11 +102,11 @@ class CyberNetTest {
     var input2 = net.addInputPin();
     var input3 = net.addInputPin();
 
-    var neuron1 = CyberNeuron.of(3, 1);
-    var neuron2 = CyberNeuron.of(3, 1);
+    var neuron1 = CyberNeuron.of(3, 100);
+    var neuron2 = CyberNeuron.of(3, 100);
 
-    var neuron3 = CyberNeuron.of(2, 1);
-    var neuron4 = CyberNeuron.of(2, 1);
+    var neuron3 = CyberNeuron.of(2, 100);
+    var neuron4 = CyberNeuron.of(2, 100);
 
     net.put(neuron1);
     net.put(neuron2);
@@ -134,6 +134,8 @@ class CyberNetTest {
     net.link(neuron4, out2, 0);
 
     assertFalse(net.hasInternalErrors());
+
+    assertEquals(2, net.activate(new int[] {10, 20, 30}).length);
 
     logDiagram("3x2 network", net);
   }
