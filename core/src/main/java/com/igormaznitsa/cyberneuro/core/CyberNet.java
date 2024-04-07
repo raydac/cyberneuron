@@ -235,6 +235,7 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
           final String id = makeReadableId(x);
           final String attributes = findDotAttributesForEntity(x);
           builder.append('\"').append(id).append("\" ").append(attributes).append(';').append(eol);
+          processedEntities.put(x, id);
         });
 
     this.entities.values().stream().flatMap(Collection::stream)
@@ -242,7 +243,11 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
           final String idSource = processedEntities.get(l.source());
           final String idTarget = processedEntities.get(l.target());
           builder.append('\"').append(idSource).append("\" -> \"").append(idTarget)
-              .append("\" [fontsize=8;label=\"").append(l.targetIndex()).append("\"];")
+              .append("\" [fontsize=8")
+              .append(l.target().getInputSize() > 1 ? ";headlabel=\"" + l.targetIndex() + '\"' : "")
+              .append(
+                  l.source().getOutputSize() > 1 ? ";taillabel=\"" + l.sourceIndex() + '\"' : "")
+              .append("];")
               .append(eol);
         });
 
