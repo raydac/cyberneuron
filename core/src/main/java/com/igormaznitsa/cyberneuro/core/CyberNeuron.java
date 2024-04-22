@@ -92,8 +92,11 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActiva
     if (object == this) {
       return true;
     }
-    return object instanceof CyberNeuron cyberNeuron
-        && (this.uid == cyberNeuron.uid);
+
+    if (object instanceof CyberNeuron) {
+      return this.uid == ((CyberNeuron) object).uid;
+    }
+    return false;
   }
 
   public int getRowLength() {
@@ -138,7 +141,7 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActiva
       throw new IllegalArgumentException(
           format("Wrong input size: %d != %d", this.inputSize, inputVector.length));
     }
-    if (this.activateAsConfidence(inputVector).getFirst() == expectedConfidence) {
+    if (this.activateAsConfidence(inputVector).get(0) == expectedConfidence) {
       return;
     }
 

@@ -23,7 +23,7 @@ class CyberNeuronTest {
         0, 17, 0, 0
     });
     assertEquals(100L, neuron.calc(new int[] {1, 3, 0, 1, 2, 1}));
-    assertEquals(MAY_BE_YES, neuron.activateAsConfidence(new int[] {1, 3, 0, 1, 2, 1}).getFirst());
+    assertEquals(MAY_BE_YES, neuron.activateAsConfidence(new int[] {1, 3, 0, 1, 2, 1}).get(0));
   }
 
   @Test
@@ -35,10 +35,10 @@ class CyberNeuronTest {
     neuron.teach(new int[] {0, 1}, SEQUENTIAL, NO);
     neuron.teach(new int[] {1, 0}, SEQUENTIAL, NO);
 
-    assertEquals(NO, neuron.activateAsConfidence(new int[] {0, 0}).getFirst());
-    assertEquals(NO, neuron.activateAsConfidence(new int[] {0, 1}).getFirst());
-    assertEquals(NO, neuron.activateAsConfidence(new int[] {1, 0}).getFirst());
-    assertEquals(MAY_BE_YES, neuron.activateAsConfidence(new int[] {1, 1}).getFirst());
+    assertEquals(NO, neuron.activateAsConfidence(new int[] {0, 0}).get(0));
+    assertEquals(NO, neuron.activateAsConfidence(new int[] {0, 1}).get(0));
+    assertEquals(NO, neuron.activateAsConfidence(new int[] {1, 0}).get(0));
+    assertEquals(MAY_BE_YES, neuron.activateAsConfidence(new int[] {1, 1}).get(0));
   }
 
   @Test
@@ -50,10 +50,10 @@ class CyberNeuronTest {
     neuron.teach(new int[] {0, 0}, SEQUENTIAL, NO);
     neuron.teach(new int[] {1, 0}, SEQUENTIAL, YES);
 
-    assertEquals(MAY_BE_NO, neuron.activateAsConfidence(new int[] {0, 0}).getFirst());
-    assertEquals(MAY_BE_YES, neuron.activateAsConfidence(new int[] {0, 1}).getFirst());
-    assertEquals(YES, neuron.activateAsConfidence(new int[] {1, 0}).getFirst());
-    assertEquals(YES, neuron.activateAsConfidence(new int[] {1, 1}).getFirst());
+    assertEquals(MAY_BE_NO, neuron.activateAsConfidence(new int[] {0, 0}).get(0));
+    assertEquals(MAY_BE_YES, neuron.activateAsConfidence(new int[] {0, 1}).get(0));
+    assertEquals(YES, neuron.activateAsConfidence(new int[] {1, 0}).get(0));
+    assertEquals(YES, neuron.activateAsConfidence(new int[] {1, 1}).get(0));
   }
 
   @Test
@@ -63,8 +63,8 @@ class CyberNeuronTest {
     neuron.teach(new int[] {0}, SEQUENTIAL, YES);
     neuron.teach(new int[] {1}, SEQUENTIAL, NO);
 
-    assertEquals(NO, neuron.activateAsConfidence(new int[] {1}).getFirst());
-    assertEquals(YES, neuron.activateAsConfidence(new int[] {0}).getFirst());
+    assertEquals(NO, neuron.activateAsConfidence(new int[] {1}).get(0));
+    assertEquals(YES, neuron.activateAsConfidence(new int[] {0}).get(0));
   }
 
 

@@ -4,11 +4,19 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.Objects;
 
-public record CyberLink(HasOutput source, int sourceIndex, HasInput target, int targetIndex)
-    implements Comparable<CyberLink> {
-  public CyberLink {
-    requireNonNull(source);
-    requireNonNull(target);
+public final class CyberLink implements Comparable<CyberLink> {
+  private final HasOutput source;
+  private final int sourceIndex;
+  private final HasInput target;
+  private final int targetIndex;
+
+  public CyberLink(
+      final HasOutput source,
+      final int sourceIndex,
+      final HasInput target,
+      final int targetIndex) {
+    this.source = requireNonNull(source);
+    this.target = requireNonNull(target);
     if (source.equals(target)) {
       throw new IllegalArgumentException("Can't link itself");
     }
@@ -18,7 +26,36 @@ public record CyberLink(HasOutput source, int sourceIndex, HasInput target, int 
     if (!target.isInputIndexValid(targetIndex)) {
       throw new IndexOutOfBoundsException("Input index is invalid");
     }
+
+    this.sourceIndex = sourceIndex;
+    this.targetIndex = targetIndex;
   }
+
+  public HasOutput source() {
+    return source;
+  }
+
+  public int sourceIndex() {
+    return sourceIndex;
+  }
+
+  public HasInput target() {
+    return target;
+  }
+
+  public int targetIndex() {
+    return targetIndex;
+  }
+
+  @Override
+  public String toString() {
+    return "CyberLink[" +
+        "source=" + source + ", " +
+        "sourceIndex=" + sourceIndex + ", " +
+        "target=" + target + ", " +
+        "targetIndex=" + targetIndex + ']';
+  }
+
 
   @Override
   public boolean equals(final Object that) {

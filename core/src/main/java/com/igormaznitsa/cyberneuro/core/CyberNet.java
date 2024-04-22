@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @SuppressWarnings({"UnusedReturnValue", "BooleanMethodIsAlwaysInverted"})
@@ -59,16 +60,6 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     }
   }
 
-  @Override
-  public boolean isLocked() {
-    return this.lock;
-  }
-
-  @Override
-  public void setLock(boolean flag) {
-    this.lock = flag;
-  }
-
   private static void addValueToResolved(
       final Map<ResultEntity, Integer> map,
       final ResultEntityCache resultEntityCache,
@@ -77,6 +68,16 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     for (int p = 0; p < hasOutput.getOutputSize(); p++) {
       map.put(resultEntityCache.find(hasOutput, p), outputs[p]);
     }
+  }
+
+  @Override
+  public boolean isLocked() {
+    return this.lock;
+  }
+
+  @Override
+  public void setLock(boolean flag) {
+    this.lock = flag;
   }
 
   public void put(final CyberNetEntity entity) {
@@ -290,8 +291,8 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
                 || (!(e.getKey() instanceof CyberNetInputPin) &&
                 this.findFirstFreeInputIndex(e.getKey()) >= 0)
                 ||
-                ((e.getKey() instanceof HasOutput out && !(out instanceof IsTerminator))
-                    && out.getOutputSize() > e.getValue().size())
+                (e.getKey() instanceof HasOutput && !(e.getKey() instanceof IsTerminator)
+                    && ((HasOutput) e.getKey()).getOutputSize() > e.getValue().size())
         );
   }
 
@@ -299,7 +300,7 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     return this.entities.values().stream()
         .flatMap(Collection::stream)
         .filter(x -> x.source().equals(entity))
-        .toList();
+        .collect(Collectors.toList());
   }
 
   public List<CyberLink> findIncomingLinks(final HasInput entity) {
@@ -307,7 +308,7 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
         .flatMap(Collection::stream)
         .filter(x -> x.target().equals(entity))
         .sorted()
-        .toList();
+        .collect(Collectors.toList());
   }
 
   public List<List<CyberLink>> findWholeChain(final HasInput entity) {
@@ -315,11 +316,11 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     List<CyberLink> found = this.findIncomingLinks(entity);
 
     while (!found.isEmpty()) {
-      result.addFirst(found);
+      result.add(0, found);
       List<CyberLink> newFound = new ArrayList<>();
       for (final CyberLink link : found) {
-        if (link.source() instanceof HasInput input) {
-          newFound.addAll(findIncomingLinks(input));
+        if (link.source() instanceof HasInput) {
+          newFound.addAll(findIncomingLinks((HasInput) link.source()));
         }
       }
       found = newFound;
@@ -340,7 +341,7 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
         .filter(
             CyberNetOutputPin.class::isInstance)
         .map(CyberNetOutputPin.class::cast)
-        .toList();
+        .collect(Collectors.toList());
 
     if (allOutputs.size() != this.outputCount) {
       throw new IllegalStateException(
@@ -353,7 +354,7 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
         .filter(
             CyberNetInputPin.class::isInstance)
         .map(CyberNetInputPin.class::cast)
-        .toList();
+        .collect(Collectors.toList());
 
     if (allInputs.size() != this.inputCount) {
       throw new IllegalStateException(
@@ -376,7 +377,8 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     allOutputs.stream()
         .flatMap(x -> this.findWholeChain(x).stream().flatMap(Collection::stream))
         .forEach(link -> {
-          if (link.target() instanceof IsActivable activable) {
+          if (link.target() instanceof IsActivable) {
+            final IsActivable activable = (IsActivable) link.target();
             final int[] calculatedInputs = this.findIncomingLinks(link.target()).stream()
                 .mapToInt(x -> Objects.requireNonNull(
                     resolved.get(resultEntityCache.find(x.source(), x.sourceIndex()))))
@@ -389,9 +391,6 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     return allOutputs.stream().mapToInt(x -> resolved.get(resultEntityCache.find(x, 0))).toArray();
   }
 
-  private record ResultEntity(HasOutput output, int outPinIndex) {
-  }
-
   private static class ResultEntityCache {
     private final Map<HasOutput, Map<Integer, ResultEntity>> cache = new HashMap<>();
 
@@ -400,6 +399,50 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
           this.cache.computeIfAbsent(entity, f -> new HashMap<>());
       return indexMap.computeIfAbsent(index, i -> new ResultEntity(entity, i));
     }
+  }
+
+  private static final class ResultEntity {
+    private final HasOutput output;
+    private final int outPinIndex;
+
+    private ResultEntity(final HasOutput output, final int outPinIndex) {
+      this.output = output;
+      this.outPinIndex = outPinIndex;
+    }
+
+    public HasOutput output() {
+      return output;
+    }
+
+    public int outPinIndex() {
+      return outPinIndex;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      if (obj == this) {
+        return true;
+      }
+      if (obj == null || obj.getClass() != this.getClass()) {
+        return false;
+      }
+      var that = (ResultEntity) obj;
+      return Objects.equals(this.output, that.output) &&
+          this.outPinIndex == that.outPinIndex;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(output, outPinIndex);
+    }
+
+    @Override
+    public String toString() {
+      return "ResultEntity[" +
+          "output=" + output + ", " +
+          "outPinIndex=" + outPinIndex + ']';
+    }
+
   }
 
 }
