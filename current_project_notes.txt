@@ -4,6 +4,7 @@
 - `CyberNeuron.signal()` is the legal value to pass into another neuron (confidence ordinal 0..3). `teach(..., learningDivider)` is the paper's learning coefficient k = 1/divider.
 - Flat additive neurons are covered by tests that XOR and OR-of-ANDs do not become separable. The tree tests cover XOR, OR-of-ANDs, XOR-of-ANDs, and 3-bit parity.
 - Public types and methods have Javadoc for the recognition bands, teaching divider, wire symbol, graph links, and tree growth. Checkstyle reports no Javadoc gaps.
+- README describes the single-neuron scale, graph wires, and the `CyberTree.grow` steps.
 
 ## 2. Architecture & Technical Discoveries
 - Output is `sum_i sbox_i[input_i]`. There is no activation and no multiplication. One neuron is a sum of independent lookups, i.e. a generalized additive model on discrete symbols.
