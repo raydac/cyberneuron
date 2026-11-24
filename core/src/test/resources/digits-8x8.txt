@@ -1,0 +1,101 @@
+// 8x8 digits 0..9. X is ink, . is paper.
+
+digit 0
+.XXXXX..
+XX...XX.
+XX...XX.
+XX...XX.
+XX...XX.
+XX...XX.
+XX...XX.
+.XXXXX..
+
+digit 1
+....XX..
+...XXX..
+..XXXX..
+....XX..
+....XX..
+....XX..
+....XX..
+..XXXXXX
+
+digit 2
+.XXXXXX.
+XX....X.
+......X.
+....XXX.
+..XXX...
+.XX.....
+XX......
+XXXXXXXX
+
+digit 3
+.XXXXXX.
+X......X
+.......X
+..XXXXX.
+.......X
+.......X
+X......X
+.XXXXXX.
+
+digit 4
+XX....XX
+XX....XX
+XX....XX
+XXXXXXXX
+......XX
+......XX
+......XX
+......XX
+
+digit 5
+XXXXXXXX
+XX......
+XX......
+XXXXXX..
+.....XX.
+.....XX.
+XX...XX.
+.XXXXX..
+
+digit 6
+..XXXXX.
+.XX.....
+XX......
+XXXXXXX.
+XX....XX
+XX....XX
+XX....XX
+.XXXXXX.
+
+digit 7
+XXXXXXXX
+......XX
+.....XX.
+....XX..
+...XX...
+..XX....
+.XX.....
+XX......
+
+digit 8
+XXXXXXXX
+XX....XX
+XX....XX
+XXXXXXXX
+XX....XX
+XX....XX
+XX....XX
+XXXXXXXX
+
+digit 9
+.XXXXXX.
+XX....XX
+XX....XX
+XX....XX
+.XXXXXXX
+......XX
+.....XX.
+..XXXX..

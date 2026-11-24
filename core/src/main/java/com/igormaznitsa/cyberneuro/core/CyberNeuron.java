@@ -4,7 +4,6 @@ import static java.lang.String.format;
 
 import java.lang.reflect.Array;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Substitution-table neuron.
@@ -16,20 +15,20 @@ import java.util.Objects;
  * adds or subtracts one in addressed cells until the sum enters the requested band.
  *
  * <p>Rows are independent, so one neuron cannot separate a non-additive function
- * of its inputs. Pack interacting bits into one symbol, or grow a {@link CyberTree}.
+ * of its inputs. Pack interacting bits into one symbol, or assemble a
+ * {@link CyberNetwork} whose hidden neurons start from different tables.
  * The raw sum is not itself a legal index of an arbitrary next row; publish
  * {@link #signal(int[])} when the next alphabet is the four confidence bands.
  *
  * <p>Not thread-safe. {@link #setLock(boolean)} makes later writes throw.
  */
-public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActivable {
+public class CyberNeuron implements HasLock {
 
   private static final int THRESHOLD_NO = Byte.MAX_VALUE / 5;
   private static final int THRESHOLD_YES = Byte.MAX_VALUE - THRESHOLD_NO;
   private static final int THRESHOLD_MIDDLE = Byte.MAX_VALUE / 2;
   private final int inputSize;
   private final int rowLength;
-  private final long uid;
   private final byte[] table;
 
   private boolean locked;
@@ -38,16 +37,10 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActiva
    * Creates a neuron and fills the table from a fixed pseudo-random sequence.
    * Range checks live in {@link #of(int, int)}; this constructor trusts the numbers.
    *
-   * @param uid           identity stored as given
    * @param inputSize     number of substitution rows
    * @param maxInputValue largest legal symbol; each row has {@code maxInputValue + 1} cells
    */
-  public CyberNeuron(
-      final long uid,
-      final int inputSize,
-      final int maxInputValue
-  ) {
-    this.uid = uid;
+  public CyberNeuron(final int inputSize, final int maxInputValue) {
     this.inputSize = inputSize;
     this.rowLength = maxInputValue + 1;
     this.table = new byte[inputSize * this.rowLength];
@@ -55,7 +48,7 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActiva
   }
 
   /**
-   * Creates a neuron with a new id from {@link HasUid#UID_GENERATOR}.
+   * Creates a neuron.
    *
    * @param inputSize number of substitution rows; must be positive
    * @param maxValue largest legal symbol on every row; zero yields a one-cell row
@@ -73,7 +66,7 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActiva
     if (maxValue < 0) {
       throw new IllegalArgumentException("Max value must not be negative one");
     }
-    return new CyberNeuron(UID_GENERATOR.incrementAndGet(), inputSize, maxValue);
+    return new CyberNeuron(inputSize, maxValue);
   }
 
   private static void fillByPseudoRnd(final byte[] array) {
@@ -109,56 +102,6 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActiva
     this.locked = flag;
   }
 
-  @Override
-  public long getUid() {
-    return this.uid;
-  }
-
-  @Override
-  public boolean isInputIndexValid(final int index) {
-    return index >= 0 && index < this.inputSize;
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(this.uid);
-  }
-
-  /**
-   * Builds a neuron with a new id, the same lock flag, and the same table bytes.
-   *
-   * @return the copy; this neuron is unchanged
-   */
-  @Override
-  public CyberNetEntity makeCopy() {
-    final CyberNeuron result =
-        new CyberNeuron(UID_GENERATOR.incrementAndGet(), this.inputSize, this.rowLength - 1);
-    result.locked = this.locked;
-    System.arraycopy(this.table, 0, result.table, 0, this.table.length);
-    return result;
-  }
-
-  /**
-   * Identity equality by {@link #getUid()}. Equal tables with different ids are not equal.
-   *
-   * @param object other object
-   * @return {@code true} when {@code object} is a neuron with this id
-   */
-  @Override
-  public boolean equals(final Object object) {
-    if (object == null) {
-      return false;
-    }
-    if (object == this) {
-      return true;
-    }
-
-    if (object instanceof CyberNeuron) {
-      return this.uid == ((CyberNeuron) object).uid;
-    }
-    return false;
-  }
-
   int getTableValue(final int index) {
     return this.table[index];
   }
@@ -168,7 +111,6 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActiva
     this.table[index] = (byte) value;
   }
 
-  @Override
   public int getInputSize() {
     return this.inputSize;
   }
@@ -224,6 +166,70 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActiva
   }
 
   /**
+   * Signed change that would put {@code sum} into {@code expected}.
+   * Zero when the sum is already in that band, or when it sits in the narrow
+   * window where the band label and the numeric edges disagree.
+   *
+   * @param sum      neuron sum
+   * @param expected band the sum should enter
+   * @return positive to raise the sum, negative to lower it
+   */
+  static int signedGap(final int sum, final ConfidenceDegree expected) {
+    final int lower = lowerEdge(expected);
+    final int upper = upperEdge(expected);
+    if (sum < lower) {
+      return lower - sum;
+    }
+    if (sum > upper) {
+      return upper - sum;
+    }
+    return 0;
+  }
+
+  private static int lowerEdge(final ConfidenceDegree expected) {
+    switch (expected) {
+      case YES:
+        return THRESHOLD_YES + 1;
+      case MAY_BE_YES:
+        return THRESHOLD_MIDDLE + 1;
+      case NO:
+        return Byte.MIN_VALUE;
+      case MAY_BE_NO:
+        return THRESHOLD_NO;
+      default:
+        throw new IllegalArgumentException("Unsupported confidence: " + expected);
+    }
+  }
+
+  private static int upperEdge(final ConfidenceDegree expected) {
+    switch (expected) {
+      case YES:
+        return Byte.MAX_VALUE;
+      case MAY_BE_YES:
+        return THRESHOLD_YES - 1;
+      case NO:
+        return THRESHOLD_NO - 1;
+      case MAY_BE_NO:
+        return THRESHOLD_MIDDLE - 1;
+      default:
+        throw new IllegalArgumentException("Unsupported confidence: " + expected);
+    }
+  }
+
+  static ConfidenceDegree bandOf(final int sum) {
+    if (sum > THRESHOLD_YES) {
+      return ConfidenceDegree.YES;
+    }
+    if (sum > THRESHOLD_MIDDLE) {
+      return ConfidenceDegree.MAY_BE_YES;
+    }
+    if (sum > THRESHOLD_NO) {
+      return ConfidenceDegree.MAY_BE_NO;
+    }
+    return ConfidenceDegree.NO;
+  }
+
+  /**
    * Same band correction as {@link #teach(int[], LearnStrategy, ConfidenceDegree)},
    * with the paper's learning divider. The step count is the gap divided by
    * {@code learningDivider}, and at least one step while the sum is still outside
@@ -248,48 +254,40 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActiva
       throw new IllegalArgumentException(
           format("Wrong input size: %d != %d", this.inputSize, inputVector.length));
     }
-    if (this.activateAsConfidence(inputVector).get(0) == expectedConfidence) {
+    final int current = this.calc(inputVector);
+    if (bandOf(current) == expectedConfidence) {
       return;
     }
-
-    final int expectedMin;
-    final int expectedMax;
-    switch (expectedConfidence) {
-      case YES: {
-        expectedMin = THRESHOLD_YES + 1;
-        expectedMax = Byte.MAX_VALUE;
-      }
-      break;
-      case MAY_BE_YES: {
-        expectedMin = THRESHOLD_MIDDLE + 1;
-        expectedMax = THRESHOLD_YES - 1;
-      }
-      break;
-      case NO: {
-        expectedMin = Byte.MIN_VALUE;
-        expectedMax = THRESHOLD_NO - 1;
-      }
-      break;
-      case MAY_BE_NO: {
-        expectedMin = THRESHOLD_NO;
-        expectedMax = THRESHOLD_MIDDLE - 1;
-      }
-      break;
-      default:
-        throw new IllegalArgumentException("Unsupported confidence: " + expectedConfidence);
-    }
-
-    final int current = this.calc(inputVector);
-    final int diff;
-    if (current < expectedMin) {
-      diff = expectedMin - current;
-    } else if (current > expectedMax) {
-      diff = expectedMax - current;
-    } else {
+    final int diff = signedGap(current, expectedConfidence);
+    if (diff == 0) {
       throw new IllegalStateException("Unexpected state");
     }
 
     learnStrategy.accept(this, inputVector, scaledStep(diff, learningDivider));
+  }
+
+  /**
+   * Applies {@code steps} unit edits to the cells addressed by {@code inputs}.
+   * {@code learningDivider} keeps the same meaning as in {@link #teach}.
+   *
+   * @param inputs          one symbol per row
+   * @param learnStrategy   how the steps are spread across the addressed cells
+   * @param steps           signed step count; zero does nothing
+   * @param learningDivider positive divisor of {@code steps}
+   */
+  void nudge(
+      final int[] inputs,
+      final LearnStrategy learnStrategy,
+      final int steps,
+      final int learningDivider) {
+    this.assertNonLocked();
+    if (learningDivider < 1) {
+      throw new IllegalArgumentException("Learning divider must be positive");
+    }
+    if (steps == 0) {
+      return;
+    }
+    learnStrategy.accept(this, inputs, scaledStep(steps, learningDivider));
   }
 
   /**
@@ -317,21 +315,6 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActiva
   }
 
   /**
-   * Raw sum for this sample, wrapped in a one-element array.
-   *
-   * <p>That sum can fall outside the next row. Use {@link #signal(int[])} when the
-   * downstream alphabet is the four confidence bands.
-   *
-   * @param inputs one symbol per row
-   * @return array whose only element is {@link #calc(int[])}
-   * @throws IllegalArgumentException when {@code inputs} cannot be addressed
-   */
-  @Override
-  public int[] activate(final int[] inputs) {
-    return new int[] {calc(0, inputs)};
-  }
-
-  /**
    * Band of {@link #calc(int[])} for this sample.
    *
    * @param inputs one symbol per row
@@ -351,17 +334,7 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActiva
    * @throws IllegalArgumentException when the tail is short or a symbol is outside its row
    */
   public ConfidenceDegree check(final int offset, final int[] inputs) {
-    final int calculated = calc(offset, inputs);
-    if (calculated > THRESHOLD_YES) {
-      return ConfidenceDegree.YES;
-    }
-    if (calculated > THRESHOLD_MIDDLE) {
-      return ConfidenceDegree.MAY_BE_YES;
-    }
-    if (calculated > THRESHOLD_NO) {
-      return ConfidenceDegree.MAY_BE_NO;
-    }
-    return ConfidenceDegree.NO;
+    return bandOf(this.calc(offset, inputs));
   }
 
   /**
@@ -402,13 +375,13 @@ public class CyberNeuron implements CyberNetEntity, HasOutput, HasLock, IsActiva
   }
 
   /**
-   * Row-major text of the table, including the id.
+   * Row-major text of the table.
    *
    * @return line starting with {@code CyberNeuron:}
    */
   public String asText() {
     final StringBuilder buffer = new StringBuilder();
-    buffer.append("CyberNeuron: [uid=").append(this.uid).append(", ");
+    buffer.append("CyberNeuron: [");
     int offset = 0;
     for (int i = 0; i < this.inputSize; i++) {
       if (i > 0) {

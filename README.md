@@ -5,10 +5,9 @@ Golubchikov, [A new model of artificial neuron: cyberneuron and its use](https:/
 
 A cyberneuron does not multiply inputs by weights. Each input is a symbol that selects one cell in its own substitution
 row, and the neuron output is the sum of those cells. Teaching rewrites only the cells the current sample addressed. The
-same rule teaches a single neuron and the two-layer tree in this project. There is no backpropagation: a later table
-uses a value as an index, so there is no local slope to send backward. The paper states that limit directly. A later
-note by Polikarpov grows a cyberneuron tree by trying wirings and keeping those that raise a balanced recognition score.
-`CyberTree` is that idea, on boolean features.
+same cell rule teaches a single neuron. A stack does not send a derivative through a table index: a later table uses a
+value as an index, so inside a cell the slope is zero. The paper states that limit directly. What travels instead is the
+signed gap described in [Teaching a stack](#teaching-a-stack).
 
 The module is Java 11. Build and test with `mvn22 -pl core test`.
 
@@ -36,7 +35,7 @@ Rows are independent. The neuron can memorize a pattern, because that pattern ad
 can implement AND, OR, and NOT on small alphabets. It cannot implement a function that is not a sum of per-input
 lookups. XOR is the clear case: any cells that make `(0,1)` and `(1,0)` high also make `(0,0)` or `(1,1)` high. The same
 wall stops `(a AND b) OR (c AND d)` when each variable is its own input. Interaction needs several bits packed into one
-index, which is what the tree does.
+index, or hidden neurons that already differ and that each see those bits.
 
 ### Teaching one neuron
 
@@ -61,103 +60,77 @@ neuron.teach(new int[] {1, 1}, LearnStrategy.SEQUENTIAL, ConfidenceDegree.YES, 4
 
 A locked neuron rejects `fill` and `teach`.
 
-## A graph of neurons
+## A stack the caller assembles
 
-`CyberNet` is a directed graph of neurons, input pins, and output pins. Each input slot accepts one link. `activate`
-writes sample symbol `i` onto the `i`-th input pin, in the order the pins were added, and returns one value per output
-pin.
-
-A neuron on that path contributes its raw sum. The next neuron uses the incoming number as a row index. A sum outside
-`0..maxValue` is rejected. The value that is always a legal index of a confidence-scale row is `signal()`, which is only
-`0..3`. Build the downstream neuron with `maxValue` at least `ConfidenceDegree.YES.ordinal()` (3).
-
-The graph must be acyclic. A cycle makes activation run without end.
+`CyberNetwork` is built from neurons that already exist. Each input slot is bound once, either to an external symbol or
+to the confidence of an earlier neuron. A slot that reads a confidence needs `maxValue` at least 3, because `signal()`
+is `0..3`. The links must be acyclic, and at least one neuron is declared as an output.
 
 ```java
-CyberNet net = new CyberNet();
-CyberNetInputPin in0 = net.addInputPin();
-CyberNetInputPin in1 = net.addInputPin();
-CyberNeuron neuron = CyberNeuron.of(2, 1);
-CyberNetOutputPin out = net.addOutput();
-net.put(neuron);
-net.link(in0, neuron, 0);
-net.link(in1, neuron, 1);
-net.link(neuron, out);
-int[] sum = net.activate(new int[] {1, 1});
+CyberNeuron hidden = CyberNeuron.of(1, 1);
+CyberNeuron decision = CyberNeuron.of(1, ConfidenceDegree.YES.ordinal());
+CyberNetwork network = CyberNetwork.externalInputs(1)
+        .layer(1, hidden)
+        .bind(hidden, 0, 0)
+        .connect(hidden, decision, 0)
+        .output(decision)
+        .build();
+
+network.
+
+teach(new int[] {
+   0
+},List.
+
+of(ConfidenceDegree.YES),LearnStrategy.SEQUENTIAL,1);
+        network.
+
+teach(new int[] {
+   1
+},List.
+
+of(ConfidenceDegree.NO),LearnStrategy.SEQUENTIAL,1);
+List<ConfidenceDegree> bands = network.recall(new int[] {0});
 ```
 
-`makeDotDiagram()` returns a Graphviz `digraph` of the same graph.
+`recall` returns one band per output, in the order the outputs were declared. `teach` takes the external sample, one
+expected band per output, the cell-walking strategy, and the learning divider. `makeDotDiagram()` returns a Graphviz
+`digraph`: external inputs are red boxes, hidden neurons are green ovals, and output neurons are green boxes. A slot
+index labels each edge into a neuron that has more than one input.
 
-## Teaching the two-layer tree
+### Teaching a stack
 
-`CyberTree` is the multilayer model in this project. Both layers are ordinary cyberneurons. The first layer holds
-detectors. Each detector has a single input: a chosen group of raw bits packed into one integer, so one cell stands for
-one joint pattern of those bits. The second layer is one root neuron. Its single input is the yes/no pattern of the
-detectors, packed the same way. The root is what `accepts` reads.
+`teach` records one forward pass, decides a gap for every neuron that played a part, and only then rewrites cells.
+The snapshot is what the correction reads, so a cell changed on this sample does not affect the rest of the same walk.
 
-Features are booleans. Create the tree with the vector width, then teach it with labeled examples:
+1. **Output error.** For each output whose band is not the requested one, the error is the signed gap from the current
+   sum to the edge of that band. A sum already inside the band contributes nothing. A positive gap raises cells. A
+   negative gap lowers them. Lowering alone cannot lift a zeroed table into `YES`.
 
-```java
-List<CyberTree.Example> examples = List.of(
-    CyberTree.Example.of(false, false, false),
-    CyberTree.Example.of(true, false, true),
-    CyberTree.Example.of(true, true, false),
-    CyberTree.Example.of(false, true, true)
-);
+2. **Backward walk.** Neurons are visited from the outputs toward the inputs. A hidden neuron is updated only when a
+   consumer it feeds still has a gap.
+   - Another confidence symbol is tried against the consumer. If that symbol's cell moves the consumer's sum toward
+     the gap, the hidden neuron is taught toward that confidence. The cell values are what choose the symbol.
+   - Otherwise each input that fired takes an equal share of the consumer's gap, `downstream / inputCount`. When that
+     integer share is 0 but a gap remains, the nudge keeps the gap's sign.
 
-CyberTree tree = CyberTree.ofBitCount(2);
-double score = tree.grow(examples, CyberTree.Growth.arity(2).detectors(1));
-boolean recognized = tree.accepts(new boolean[] {true, false});
-```
+3. **Step size.** The divider applied to a neuron is `learningDivider * (depth + 1) / layerWeight`, and at least 1.
+   Depth is the shortest hop count from that neuron to an output. Hidden neurons start at weight 1, so layers left
+   untouched stay equal and match the previous hop divider. `layer(weight, neurons)` on the builder sets another
+   positive weight; a heavier layer spends more of the same share. Outputs stay at weight 1, so their
+   divider remains `learningDivider`. Omitting `layer` is the same as weight 1.
 
-`Example.of` takes the class bit first, then the features. `grow` returns the recognition score of the list it was
-given. `1.0` means every example is classified correctly. A later `grow` on the same tree keeps the detectors already
-committed and continues. `asText()` prints the bit indexes each detector reads, which is the wiring the search kept.
+Declare only the last neurons as outputs. An output is trained to the band the caller named. It does not also relay
+the gap of some further consumer.
 
-`arity` is how many raw bits one detector sees at once. `detectors` is the maximum number of first-layer tables. Arity
-is at most 12, and the search refuses more than 100 000 candidate tuples.
-
-### One growth step
-
-`grow` repeats the following until the score is perfect, the detector limit is reached, or no candidate raises the
-score.
-
-1. Enumerate every combination of `arity` input bits that is not already a detector.
-2. Train a fresh detector on the whole list. Each example is packed into the index of that tuple. The table starts at
-   zero. For each cell, count positive and negative hits. When positives strictly outnumber negatives, that cell is
-   taught once with `SEQUENTIAL` toward `YES`, which lifts it to at least 103. Otherwise the cell stays 0, which the
-   scale already reads as `NO`.
-3. Train a fresh root the same way. Its index is which of the current detectors fire on the example. Its label is still
-   the example's original class.
-4. Score the root. Commit the candidate only when the score is strictly higher, then train the root again on the
-   committed set.
-
-Detectors are frozen after they are committed. They are not revised by the root. The root is rewritten from scratch
-after every committed detector, always against the original labels. That is the whole credit assignment: the second
-layer learns the combination by table lookup, and the first layer is whatever wiring made that lookup more accurate.
-
-### What the width has to cover
-
-| Task                      | Call                    | Result                                                                                                          |
-|---------------------------|-------------------------|-----------------------------------------------------------------------------------------------------------------|
-| XOR of two bits           | `arity(2).detectors(1)` | One joint table memorizes the four patterns.                                                                    |
-| `(a AND b) OR (c AND d)`  | `arity(2).detectors(2)` | Two AND detectors. The root stores OR of their yes/no bits.                                                     |
-| `(a AND b) XOR (c AND d)` | `arity(2).detectors(2)` | The same two detectors. The root stores XOR of their yes/no bits.                                               |
-| 3-bit parity              | `arity(2).detectors(3)` | Does not reach a perfect score. Every pair is split evenly by the third bit, so every cell ties and stays `NO`. |
-| 3-bit parity              | `arity(3).detectors(1)` | One table sees all three bits and memorizes parity.                                                             |
-
-### The score
-
-The score is the balanced share from the cyberneuron-tree note. With
-`k = (number of negatives) / (number of positives)`:
-
-```text
-(k * truePositive + trueNegative)
-    / (k * truePositive + trueNegative + k * falsePositive + falseNegative)
-```
-
-An empty tree predicts every sample negative. A tie inside a cell is treated as negative, because the cell is left at
-zero.
+This is credit assignment for the cells that fired. It is not a derivative through the index: inside a cell the slope
+is still zero, and the next layer only sees the confidence symbol. Two hidden neurons built by `of` with the same
+shape start as copies of one table, and identical inputs keep them copies. A chain learns a map such as NOT, including a
+chain of eight neurons. Two outputs can be taught together when each has its own detectors: on two bits, one head
+learns OR and the other learns AND. Detectors shared by both heads receive both gaps and can cancel. Four separate
+detectors also learn a door rule: grant entry only when the badge is present, the hour is inside the window, the lock
+is released, and a guard is on duty. A flat sum of separate bits still cannot learn XOR. Pack those bits into one symbol
+when one neuron must store the interaction.
 
 ## Where capacity lives
 
@@ -165,7 +138,5 @@ The paper's capacity comes from wide symbols: a byte index, or the 24-bit chunks
 single row with a large alphabet can store many patterns, and teaching one pattern touches only one cell per row, so
 older patterns usually survive.
 
-The tree spends that idea differently. Packing `arity` bits into one index is what creates the interaction. The wires
-between the two layers are only yes/no. Four-level `signal()` values are the same kind of narrow glue. Keep wide
-alphabets on the first tables when the task is pattern memory. Use the tree when the task is a boolean function that one
-additive neuron cannot separate.
+A confidence wire carries only `0..3`. Keep wide alphabets on the first tables when the task is pattern memory. Packing
+several bits into one index is what lets a single row store an interaction such as XOR.

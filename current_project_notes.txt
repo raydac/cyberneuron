@@ -1,47 +1,54 @@
 ## 1. Implementation Progress
 - Single cyberneuron matches the 2009 paper: per-input substitution tables, sum, four confidence bands, sequential/random ±1 teaching.
-- `CyberTree` grows a two-layer network: joint lookup detectors on bit tuples, then a root joint table on the detector bits. Wiring is kept only when Polikarpov's PROP score rises.
+- `CyberTree` and its tests were removed. Training lives on `CyberNetwork`.
 - `CyberNeuron.signal()` is the legal value to pass into another neuron (confidence ordinal 0..3). `teach(..., learningDivider)` is the paper's learning coefficient k = 1/divider.
-- Flat additive neurons are covered by tests that XOR and OR-of-ANDs do not become separable. The tree tests cover XOR, OR-of-ANDs, XOR-of-ANDs, and 3-bit parity.
-- Public types and methods have Javadoc for the recognition bands, teaching divider, wire symbol, graph links, and tree growth. Checkstyle reports no Javadoc gaps.
-- README describes the single-neuron scale, graph wires, and the `CyberTree.grow` steps.
+- Flat additive neurons are covered by tests that XOR and OR-of-ANDs do not become separable.
+- Public types and methods have Javadoc for the recognition bands, teaching divider, wire symbol, and `CyberNetwork`.
+- README describes the single-neuron scale, the assembled stack, and the three-step teacher: output signed gap, backward walk with an equal share or a better confidence, layer weight in the hop divider. `CyberNet` and its pin graph are removed.
+- `CyberNetwork` binds existing neurons: each slot is an external symbol or another neuron's confidence. `teach` takes the signed output gap and pushes an equal share of it to every input that played a part. A hidden layer's weight divides the hop divider, so a heavier layer spends more of that share. Default weight is 1.
+- `CyberNetworkTest.teachesOrAndOnTwoOutputs` teaches two bits into four detectors and two heads. After 40 passes the OR head and the AND head both match all four patterns.
+- `teachesNotThroughEightLayers` reaches NOT by pass 180 and still holds at pass 260. The test stops at 200. It is a chain of one neuron per layer.
+- `diagramsTwoHiddenLayers` builds two hidden layers of two neurons each, then one output, and prints that Graphviz diagram.
+- `DigitSymbolsNetworkTest` loads 8x8 digits 0..9 from `digits-8x8.txt` and teaches a three-hidden-layer net. Each digit has its own tower: four binary two-row strips, one combiner, one confidence relay, then the output. Digit 3 is the open shape with a single right stem and left hooks. Etalons are taught until each output is the only `YES`. Then rotated (±15°, ±20°), mirrored, and scaled (0.9 and 1.2) copies, kept when within 12 pixels of that digit and more than 12 from the others, are taught at divider 64 and the etalons are repaired. `digits-8x8-probes.txt` holds unseen one-pixel glyphs; those are recognized and are not used for teaching.
+- `drawsAndRecognizesInASketch` is disabled. `DigitSymbolsNetworkTest.main` opens the same Swing grid: left drag draws, right drag erases, and the trained net names the picture.
+- `teachesDoorAccessRule` is four binary conditions into four detectors and one grant neuron. After 160 passes only badge + inside-hours + lock released + guard on duty is `YES`.
 
 ## 2. Architecture & Technical Discoveries
 - Output is `sum_i sbox_i[input_i]`. There is no activation and no multiplication. One neuron is a sum of independent lookups, i.e. a generalized additive model on discrete symbols.
 - Cross-input logic (XOR, parity, OR of ANDs) does not fit in one additive neuron. It fits when several bits are packed into one table index (a joint lookup), which is what the later cyberneuron-tree paper grows.
 - Authors explicitly reject backpropagation for a net of cyberneurons (arxiv 0907.0229 conclusion, and the KDD cyberneuron-tree paper). The index selection is not differentiable: inside a cell the gradient is 0, on the boundary it is a jump.
-- The only local gradient that exists is ∂sum/∂activeCell = 1. That is exactly what `teach` already applies. It dies at the next lookup, so hidden layers cannot be trained by chaining that derivative.
-- Published training is forward growth: add one substitution table, try connections, rewrite the table, keep the wiring that improves PROP = (k*TP + TN) / (k*TP + TN + k*FP + FN), k = N0/N1.
-- Follow-up paper: Polikarpov, "Исследование новой модели искусственного нейрона как элемента системы обнаружения сетевых атак" (cyberneuron tree on KDD cup'99). Same author states backprop does not apply.
-- Between neurons the wire must carry a symbol inside the next table, not the raw sum. `CyberNet.activate` still forwards the raw sum. `testNet_3_2` only checks the output count; sums can fall outside `0..maxInputValue` and then `calc` rejects them.
-- Joint-table cells with conflicting labels are written once, by majority, through the existing YES teach. Unanimous cells are the one-step case from the paper.
+- The only local gradient that exists is ∂sum/∂activeCell = 1. That is exactly what `teach` already applies. It dies at the next lookup, so a numeric derivative cannot cross a table index.
+- `CyberNetwork` does not pass a derivative through a table index. The output gap is `signedGap`. Each input that fired takes an equal share of the downstream gap. Hidden layers default to weight 1; `Builder.layer(weight, neurons)` sets another positive weight. The applied divider is `learningDivider * (depth + 1) / layerWeight`. If another confidence selects a downstream cell that reduces the gap, the neuron is taught toward that confidence. Snapshot first, then apply.
+- Follow-up paper: Polikarpov, "Исследование новой модели искусственного нейрона как элемента системы обнаружения сетевых атак" (cyberneuron tree on KDD cup'99). Same author states backprop does not apply. The project no longer implements that tree.
+- Between neurons the wire carries `signal()`, a confidence ordinal in `0..3`. `CyberNetwork.makeDotDiagram` draws that wiring.
+- The digit net stays compact by keeping every pixel a binary symbol. A strip sums sixteen of them. The combiner and the relay only see confidence symbols, so they cannot store the bitmap.
 
 ## 3. Technical Debt & Refactoring
-- `CyberNet.makeCopy` copies every entity twice and can disagree with `put` about input/output counts. Not used by the tree.
-- `CyberNet.activate` has no symbol contract on neuron-to-neuron links. A later change should pass `signal()` (or another explicit quantizer) into the next table.
-- Tree search enumerates bit tuples up to arity 12 and 100_000 combinations. It does not yet do the paper's per-bit evolutionary attach for wide non-binary features.
-- Depth is two layers (detectors, then root). A deeper tree would treat the root signal as one more bit and grow again. Not implemented.
 - `LearnStrategy` draws `RANDOM` from a shared `java.util.Random`. Sequential teaching is the deterministic one.
 
 ## 4. Current Work In Progress
-- Multilayer question is answered by `CyberTree`, not by backpropagation.
-- No open edit in progress.
+- `CyberNetwork` teaching pushes the output gap back in equal shares. Layer weight divides the hop divider and defaults to 1.
+- Digit variants must stay weaker than the etalon pass. A full-strength variant pass makes 4, 6, and 8 share `YES` with 9. Do not weight the share by cell magnitude; that breaks OR, the door rule, and the eight-layer NOT.
 
 ## 5. Known Issues & Limitations
 - A cyberneuron with separate binary inputs cannot represent XOR or `(a AND b) OR (c AND d)`, for any table contents.
-- Pair tables cannot solve 3-bit parity, because every pair is tied against the third bit. A 3-bit joint table can.
+- Pair tables cannot solve 3-bit parity, because every pair is tied against the third bit. A single row that sees all three bits can memorize it.
 - Alphabet on the input layer is what creates capacity. Quantizing every wire to 4 confidence levels throws that capacity away; keep wide symbols on the first tables.
 - `teach` uses the full gap when `learningDivider` is 1. The paper's experiments prefer divider 4 (k = 0.25).
+- A decrease-only rule cannot lift a zeroed table into `YES`. The network gap is signed.
+- Neurons from `of` with the same shape share one fill seed and stay clones under the same inputs, so two identical hidden neurons do not split into the two XOR detectors by themselves.
+- An output neuron is trained only to the caller's band. It does not forward a further consumer's gap. Declare terminals only.
+- Two heads that share the same detectors can cancel. OR and AND on one shared pair drifted to all `NO`. Give each head its own detectors.
+- A three-input OR or a 2-of-3 vote, taught from zeroed tables into one combiner, stayed `YES` on every pattern. The combiner saturated before the detectors changed symbol.
 
 ## 6. Open Questions & Pending Decisions
-- Whether `CyberNet.activate` should start emitting `signal()` on neuron-to-neuron edges. That changes the 3-2 graph's numeric outputs.
-- Whether the next step is deeper than two layers, or n-tuple tables over bytes (the virus-scanner setting) rather than over bits.
+- Whether the next step is n-tuple tables over bytes (the virus-scanner setting) rather than over bits. Deeper stacks are `CyberNetwork`.
 
 ## 7. Useful References
 - Paper: https://arxiv.org/pdf/0907.0229.pdf
 - Tree / IDS follow-up (CyberLeninka): search title "Исследование новой модели искусственного нейрона как элемента системы обнаружения сетевых атак".
 - Tests: `mvn22 -pl core test`
-- Usage: `CyberTree.ofBitCount(n).grow(examples, CyberTree.Growth.arity(2).detectors(2))`, then `accepts(bits)`.
+- Usage: `CyberNetwork.externalInputs(n).bind(...).connect(...).output(...).build()`, then `teach` / `recall`.
 
 ## 8. User Advice and Recommendations
-- User wants a network and was considering backpropagation. Do not add gradient backprop through table indexes. Extend `CyberTree` (joint tables + PROP growth) or pass `signal()` into a downstream neuron whose `maxInputValue` is at least 3.
+- User asked to drop `CyberTree` and stay on `CyberNetwork`. Keep the gap signed. Do not send a numeric derivative through a table index. XOR of separate bits still needs packed symbols or hidden neurons that already differ.

@@ -1,0 +1,201 @@
+// Held-out glyphs. Each one differs from its digit by a single pixel.
+
+probe 0
+..XXXX..
+XX...XX.
+XX...XX.
+XX...XX.
+XX...XX.
+XX...XX.
+XX...XX.
+.XXXXX..
+
+probe 0
+XXXXXX..
+XX...XX.
+XX...XX.
+XX...XX.
+XX...XX.
+XX...XX.
+XX...XX.
+.XXXXX..
+
+probe 1
+.....X..
+...XXX..
+..XXXX..
+....XX..
+....XX..
+....XX..
+....XX..
+..XXXXXX
+
+probe 1
+X...XX..
+...XXX..
+..XXXX..
+....XX..
+....XX..
+....XX..
+....XX..
+..XXXXXX
+
+probe 2
+..XXXXX.
+XX....X.
+......X.
+....XXX.
+..XXX...
+.XX.....
+XX......
+XXXXXXXX
+
+probe 2
+XXXXXXX.
+XX....X.
+......X.
+....XXX.
+..XXX...
+.XX.....
+XX......
+XXXXXXXX
+
+probe 3
+.XXXXXX.
+X.......
+.......X
+..XXXXX.
+.......X
+.......X
+X......X
+.XXXXXX.
+
+probe 3
+XXXXXXX.
+X......X
+.......X
+..XXXXX.
+.......X
+.......X
+X......X
+.XXXXXX.
+
+probe 4
+X.....XX
+XX....XX
+XX....XX
+XXXXXXXX
+......XX
+......XX
+......XX
+......XX
+
+probe 4
+XX....XX
+XX....XX
+XXX...XX
+XXXXXXXX
+......XX
+......XX
+......XX
+......XX
+
+probe 5
+.XXXXXXX
+XX......
+XX......
+XXXXXX..
+.....XX.
+.....XX.
+XX...XX.
+.XXXXX..
+
+probe 5
+XXXXXXXX
+XXX.....
+XX......
+XXXXXX..
+.....XX.
+.....XX.
+XX...XX.
+.XXXXX..
+
+probe 6
+..XXXXX.
+.XX.....
+.X......
+XXXXXXX.
+XX....XX
+XX....XX
+XX....XX
+.XXXXXX.
+
+probe 6
+..XXXXXX
+.XX.....
+XX......
+XXXXXXX.
+XX....XX
+XX....XX
+XX....XX
+.XXXXXX.
+
+probe 7
+XX.XXXXX
+......XX
+.....XX.
+....XX..
+...XX...
+..XX....
+.XX.....
+XX......
+
+probe 7
+XXXXXXXX
+..X...XX
+.....XX.
+....XX..
+...XX...
+..XX....
+.XX.....
+XX......
+
+probe 8
+.XXXXXXX
+XX....XX
+XX....XX
+XXXXXXXX
+XX....XX
+XX....XX
+XX....XX
+XXXXXXXX
+
+probe 8
+XXXXXXXX
+XX.X..XX
+XX....XX
+XXXXXXXX
+XX....XX
+XX....XX
+XX....XX
+XXXXXXXX
+
+probe 9
+..XXXXX.
+XX....XX
+XX....XX
+XX....XX
+.XXXXXXX
+......XX
+.....XX.
+..XXXX..
+
+probe 9
+XXXXXXX.
+XX....XX
+XX....XX
+XX....XX
+.XXXXXXX
+......XX
+.....XX.
+..XXXX..
