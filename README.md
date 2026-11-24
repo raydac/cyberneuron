@@ -76,20 +76,8 @@ CyberNetwork network = CyberNetwork.externalInputs(1)
         .output(decision)
         .build();
 
-network.
-
-teach(new int[] {
-   0
-},List.
-
-of(ConfidenceDegree.YES),LearnStrategy.SEQUENTIAL,1);
-        network.
-
-teach(new int[] {
-   1
-},List.
-
-of(ConfidenceDegree.NO),LearnStrategy.SEQUENTIAL,1);
+network.teach(new int[] {0},List.of(ConfidenceDegree.YES),LearnStrategy.SEQUENTIAL,1);
+        network.teach(new int[] {1},List.of(ConfidenceDegree.NO),LearnStrategy.SEQUENTIAL,1);
 List<ConfidenceDegree> bands = network.recall(new int[] {0});
 ```
 
