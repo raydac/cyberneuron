@@ -2,6 +2,10 @@ package com.igormaznitsa.cyberneuro.core;
 
 import java.util.Objects;
 
+/**
+ * Sink pin of a {@link CyberNet}. The pin is a {@link IsTerminator}, and
+ * {@link #activate(int[])} forwards its single incoming value unchanged.
+ */
 public class CyberNetOutputPin implements CyberNetEntity, IsActivable, HasOutput, IsTerminator {
   private final long uid;
 
@@ -40,6 +44,12 @@ public class CyberNetOutputPin implements CyberNetEntity, IsActivable, HasOutput
     return Objects.hash(this.uid);
   }
 
+  /**
+   * Returns the incoming value as the pin output.
+   *
+   * @param inputs one-element vector delivered by the single incoming link
+   * @return the same array instance
+   */
   @Override
   public int[] activate(int[] inputs) {
     return inputs;

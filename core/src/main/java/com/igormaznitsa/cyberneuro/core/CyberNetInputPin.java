@@ -2,6 +2,10 @@ package com.igormaznitsa.cyberneuro.core;
 
 import java.util.Objects;
 
+/**
+ * Source pin of a {@link CyberNet}. Activation writes one sample symbol here,
+ * and links carry that symbol onward. The pin has no input slots to wire.
+ */
 public final class CyberNetInputPin implements CyberNetEntity, HasOutput {
 
   private final long uid;

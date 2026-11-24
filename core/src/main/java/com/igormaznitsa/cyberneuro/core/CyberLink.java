@@ -4,12 +4,29 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.Objects;
 
+/**
+ * Directed connection from one output slot to one input slot.
+ *
+ * <p>Equality ignores {@link #sourceIndex()} and uses the source, the target,
+ * and {@link #targetIndex()}. Ordering compares target slots only.
+ */
 public final class CyberLink implements Comparable<CyberLink> {
   private final HasOutput source;
   private final int sourceIndex;
   private final HasInput target;
   private final int targetIndex;
 
+  /**
+   * Connects {@code source}'s output slot to {@code target}'s input slot.
+   *
+   * @param source      element that produces the value
+   * @param sourceIndex output slot on {@code source}
+   * @param target      element that consumes the value
+   * @param targetIndex input slot on {@code target}
+   * @throws IllegalArgumentException  when {@code source} and {@code target} are the same element
+   * @throws IndexOutOfBoundsException when either slot index is outside that element
+   * @throws NullPointerException      when {@code source} or {@code target} is null
+   */
   public CyberLink(
       final HasOutput source,
       final int sourceIndex,
@@ -31,18 +48,38 @@ public final class CyberLink implements Comparable<CyberLink> {
     this.targetIndex = targetIndex;
   }
 
+  /**
+   * Element that produces the value on this link.
+   *
+   * @return source passed to the constructor
+   */
   public HasOutput source() {
     return source;
   }
 
+  /**
+   * Output slot on {@link #source()}.
+   *
+   * @return zero-based slot index
+   */
   public int sourceIndex() {
     return sourceIndex;
   }
 
+  /**
+   * Element that consumes the value on this link.
+   *
+   * @return target passed to the constructor
+   */
   public HasInput target() {
     return target;
   }
 
+  /**
+   * Input slot on {@link #target()}.
+   *
+   * @return zero-based slot index
+   */
   public int targetIndex() {
     return targetIndex;
   }
@@ -76,6 +113,12 @@ public final class CyberLink implements Comparable<CyberLink> {
     return Objects.hash(this.source, this.target, this.targetIndex);
   }
 
+  /**
+   * Orders links by {@link #targetIndex()} only.
+   *
+   * @param that other link
+   * @return negative, zero, or positive as this target slot compares to {@code that}
+   */
   @Override
   public int compareTo(final CyberLink that) {
     return Integer.compare(this.targetIndex, that.targetIndex);

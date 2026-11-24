@@ -17,6 +17,19 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+/**
+ * Directed graph of neurons, input pins, and output pins.
+ *
+ * <p>{@link #activate(int[])} writes one sample symbol on each {@link CyberNetInputPin},
+ * in insertion order, then walks links into the output pins. A neuron contributes
+ * its raw sum. The next neuron treats that sum as a row index, so the sum has to
+ * sit inside that row. Publish {@link CyberNeuron#signal(int[])} when the downstream
+ * alphabet is the four confidence bands.
+ *
+ * <p>Each input slot accepts one link. The graph must be acyclic: a cycle makes
+ * {@link #activate(int[])} and {@link #findWholeChain(HasInput)} run without end.
+ * Not thread-safe. {@link #setLock(boolean)} rejects structural edits.
+ */
 @SuppressWarnings({"UnusedReturnValue", "BooleanMethodIsAlwaysInverted"})
 public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable {
   private final Map<CyberNetEntity, Set<CyberLink>> entities = new LinkedHashMap<>();
@@ -26,6 +39,9 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
 
   private boolean lock;
 
+  /**
+   * Empty graph with a new id.
+   */
   public CyberNet() {
     this.uid = UID_GENERATOR.incrementAndGet();
   }
@@ -80,6 +96,13 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     this.lock = flag;
   }
 
+  /**
+   * Adds a member that is not already in this graph.
+   *
+   * @param entity neuron, pin, or nested graph to own
+   * @throws IllegalStateException when {@code entity} is already present or the graph is locked
+   * @throws NullPointerException  when {@code entity} is null
+   */
   public void put(final CyberNetEntity entity) {
     this.assertNonLocked();
     if (this.entities.containsKey(entity)) {
@@ -94,6 +117,12 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     }
   }
 
+  /**
+   * Adds a new sink pin and returns it.
+   *
+   * @return the pin, already a member of this graph
+   * @throws IllegalStateException when the graph is locked
+   */
   public CyberNetOutputPin addOutput() {
     this.assertNonLocked();
     final CyberNetOutputPin newOutput = CyberNetOutputPin.makeNew();
@@ -101,6 +130,12 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     return newOutput;
   }
 
+  /**
+   * Adds a new source pin and returns it. Sample symbols follow this insertion order.
+   *
+   * @return the pin, already a member of this graph
+   * @throws IllegalStateException when the graph is locked
+   */
   public CyberNetInputPin addInputPin() {
     this.assertNonLocked();
     final CyberNetInputPin newInput = CyberNetInputPin.makeNew();
@@ -108,6 +143,20 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     return newInput;
   }
 
+  /**
+   * Links one output slot to one still-free input slot. Both ends must already be members.
+   *
+   * @param <S> producer type
+   * @param <T> consumer type
+   * @param src producer of the value
+   * @param outputIndex output slot on {@code src}
+   * @param target consumer of the value
+   * @param targetIndex input slot on {@code target}; a second link to the same slot is rejected
+   * @return the stored link
+   * @throws IllegalArgumentException when a slot index is outside its element
+   * @throws IllegalStateException when the graph is locked or {@code targetIndex} is already linked
+   * @throws NullPointerException when {@code src} is not a member of this graph
+   */
   public <S extends CyberNetEntity & HasOutput, T extends CyberNetEntity> CyberLink link(
       final S src,
       final int outputIndex,
@@ -131,6 +180,20 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     return link;
   }
 
+  /**
+   * Links {@code targetIndex} from the first unused output slot of {@code src}.
+   * A producer with one output always uses slot {@code 0}.
+   *
+   * @param <S> producer type
+   * @param <T> consumer type
+   * @param src producer of the value
+   * @param target consumer of the value
+   * @param targetIndex input slot on {@code target}
+   * @return the stored link
+   * @throws IllegalArgumentException when {@code targetIndex} is outside {@code target}
+   * @throws IllegalStateException when the graph is locked, the slot is taken,
+   *     or an end is not a member
+   */
   public <S extends CyberNetEntity & HasOutput, T extends CyberNetEntity> CyberLink link(
       final S src,
       final T target,
@@ -139,6 +202,19 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     return this.link(src, findFirstPreferableOutputIndex(src), target, targetIndex);
   }
 
+  /**
+   * Links {@code outputIndex} to the first free input slot of {@code target}.
+   *
+   * @param <S> producer type
+   * @param <T> consumer type
+   * @param src producer of the value
+   * @param outputIndex output slot on {@code src}
+   * @param target consumer of the value
+   * @return the stored link
+   * @throws IllegalArgumentException when {@code outputIndex} is outside {@code src},
+   *     or {@code target} has no free input slot
+   * @throws IllegalStateException when the graph is locked or an end is not a member
+   */
   public <S extends CyberNetEntity & HasOutput, T extends CyberNetEntity> CyberLink link(
       final S src,
       final int outputIndex,
@@ -147,6 +223,17 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     return this.link(src, outputIndex, target, findFirstFreeInputIndex(target));
   }
 
+  /**
+   * Links the first unused output of {@code src} to the first free input of {@code target}.
+   *
+   * @param <S> producer type
+   * @param <T> consumer type
+   * @param src producer of the value
+   * @param target consumer of the value
+   * @return the stored link
+   * @throws IllegalArgumentException when {@code target} has no free input slot
+   * @throws IllegalStateException when the graph is locked or an end is not a member
+   */
   public <S extends CyberNetEntity & HasOutput, T extends CyberNetEntity> CyberLink link(
       final S src,
       final T target
@@ -155,21 +242,37 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
         findFirstFreeInputIndex(target));
   }
 
+  /**
+   * First output slot of {@code source} that does not yet start a link.
+   * A one-output element returns {@code 0} even when that slot is already used.
+   *
+   * @param <A> producer type
+   * @param source member of this graph
+   * @return unused slot, or {@code 0} when every slot is already used
+   * @throws IllegalStateException when {@code source} is not a member
+   */
   public <A extends CyberNetEntity & HasOutput> int findFirstPreferableOutputIndex(
-      final A a) {
-    if (!this.entities.containsKey(a)) {
+      final A source) {
+    if (!this.entities.containsKey(source)) {
       throw new IllegalStateException("Argument is not among network entities");
     }
-    if (a.getOutputSize() == 1) {
+    if (source.getOutputSize() == 1) {
       return 0;
     }
-    final Set<CyberLink> found = this.entities.get(a);
-    return IntStream.range(0, a.getOutputSize())
+    final Set<CyberLink> found = this.entities.get(source);
+    return IntStream.range(0, source.getOutputSize())
         .filter(i -> found.stream().noneMatch(z -> z.sourceIndex() == i))
         .findFirst()
         .orElse(0);
   }
 
+  /**
+   * First input slot of {@code input} that no link targets yet.
+   *
+   * @param input member of this graph
+   * @return free slot, or {@code -1} when every slot is taken
+   * @throws IllegalStateException when {@code input} is not a member
+   */
   public int findFirstFreeInputIndex(final CyberNetEntity input) {
     if (!this.entities.containsKey(input)) {
       throw new IllegalStateException("Argument is not among network entities");
@@ -184,6 +287,12 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     return freeIndex < input.getInputSize() ? freeIndex : -1;
   }
 
+  /**
+   * Another graph built from {@link CyberNetEntity#makeCopy()} of these members,
+   * with links replayed onto the copies. The copy keeps this lock flag.
+   *
+   * @return a separate graph; member ids are new
+   */
   @Override
   public CyberNetEntity makeCopy() {
     final CyberNet copyToReturn = new CyberNet();
@@ -216,11 +325,24 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     return copyToReturn;
   }
 
+  /**
+   * Members for which {@link CyberNetEntity#hasInternalErrors()} is false.
+   * Unlinked slots of the whole graph are reported by {@link #hasInternalErrors()}.
+   *
+   * @return those members; empty when every member reports an internal error
+   */
   public Set<CyberNetEntity> findErrors() {
     return this.entities.keySet().stream().filter(x -> !x.hasInternalErrors())
         .collect(toUnmodifiableSet());
   }
 
+  /**
+   * Graphviz {@code digraph} of members and links, laid out left to right.
+   * Input pins are boxes, neurons are ovals, and multi-slot ends are labeled
+   * with the slot index.
+   *
+   * @return a complete {@code digraph G} document
+   */
   public String makeDotDiagram() {
     final StringBuilder builder = new StringBuilder();
     final String eol = "\n";
@@ -282,6 +404,15 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     return index >= 0 && index < this.inputCount;
   }
 
+  /**
+   * Whether some member is unfinished.
+   *
+   * <p>True when a member other than an input pin still has a free input slot,
+   * a non-terminator still has an output slot with no link, or a member's own
+   * {@link CyberNetEntity#hasInternalErrors()} is true.
+   *
+   * @return {@code true} when the graph is not fully wired
+   */
   @Override
   public boolean hasInternalErrors() {
     return this.entities.entrySet()
@@ -296,6 +427,12 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
         );
   }
 
+  /**
+   * Links that leave {@code entity}.
+   *
+   * @param entity producer to inspect; a non-member yields an empty list
+   * @return those links, in encounter order
+   */
   public List<CyberLink> findOutgoingLinks(final HasOutput entity) {
     return this.entities.values().stream()
         .flatMap(Collection::stream)
@@ -303,6 +440,12 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
         .collect(Collectors.toList());
   }
 
+  /**
+   * Links that enter {@code entity}, ordered by target slot.
+   *
+   * @param entity consumer to inspect; a non-member yields an empty list
+   * @return those links, sorted by {@link CyberLink#targetIndex()}
+   */
   public List<CyberLink> findIncomingLinks(final HasInput entity) {
     return this.entities.values().stream()
         .flatMap(Collection::stream)
@@ -311,6 +454,14 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
         .collect(Collectors.toList());
   }
 
+  /**
+   * Incoming links of {@code entity}, then the incoming links of those sources,
+   * and so on back to the pins. The first list is the layer nearest the sources.
+   * Requires an acyclic graph.
+   *
+   * @param entity consumer whose ancestors are collected
+   * @return layers from the sources toward {@code entity}; empty when nothing feeds it
+   */
   public List<List<CyberLink>> findWholeChain(final HasInput entity) {
     final List<List<CyberLink>> result = new ArrayList<>();
     List<CyberLink> found = this.findIncomingLinks(entity);
@@ -329,6 +480,17 @@ public class CyberNet implements CyberNetEntity, HasOutput, HasLock, IsActivable
     return result;
   }
 
+  /**
+   * Pushes {@code inputs} through the graph. Index {@code i} is written to the
+   * input pin added as number {@code i}. Each output pin contributes one result,
+   * in the order the pins were added. Neuron-to-neuron values are raw sums.
+   *
+   * @param inputs one symbol per input pin
+   * @return one value per output pin
+   * @throws IllegalArgumentException when {@code inputs} length is not the pin count
+   * @throws IllegalStateException when the stored pins do not match the pin counts
+   * @throws NullPointerException when a consumer is evaluated before its producers
+   */
   @Override
   public int[] activate(final int[] inputs) {
     if (inputs.length != this.inputCount) {

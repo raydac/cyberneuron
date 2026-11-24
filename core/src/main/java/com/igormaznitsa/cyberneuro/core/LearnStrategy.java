@@ -2,8 +2,17 @@ package com.igormaznitsa.cyberneuro.core;
 
 import java.util.Random;
 
+/**
+ * How one teaching step spends a sum correction on the cells the sample addressed.
+ *
+ * <p>Each step adds or subtracts one in a single addressed cell, and stops at the
+ * signed-byte ends. Cells the sample did not address stay as they are.
+ */
 public enum LearnStrategy {
 
+  /**
+   * Walks rows from the first, one step per row, then wraps until the steps are spent.
+   */
   SEQUENTIAL((neuron, inputs, modifier) -> {
     int simpleModifier = modifier;
     final boolean increment = simpleModifier >= 0;
@@ -29,6 +38,8 @@ public enum LearnStrategy {
       }
     }
   }),
+
+  /** Picks a fresh row for every step, so the same lesson can mark different cells. */
   RANDOM((neuron, inputs, modifier) -> {
     int simpleModifier = modifier;
     final boolean increment = simpleModifier >= 0;
@@ -59,6 +70,13 @@ public enum LearnStrategy {
     this.changer = changer;
   }
 
+  /**
+   * Rewrites cells of {@code neuron} addressed by {@code inputs}.
+   *
+   * @param neuron unlocked neuron whose table changes
+   * @param inputs one in-range symbol per row; only those cells are eligible
+   * @param modifier step count; positive raises cells, negative lowers them
+   */
   public void accept(final CyberNeuron neuron, final int[] inputs, final int modifier) {
     this.changer.accept(neuron, inputs, modifier);
   }
