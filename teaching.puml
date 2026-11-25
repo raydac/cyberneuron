@@ -1,0 +1,87 @@
+@startuml teaching
+title Teaching a CyberNetwork
+
+start
+:Receive the external sample, one expected band per output,\nthe learn strategy, and a positive learning divider;
+
+if (The sample width, the band count, or the divider is illegal?) then (yes)
+  :Reject the call;
+  stop
+else (no)
+endif
+
+partition "1. Forward snapshot" {
+  :Walk the neurons from the inputs toward the outputs;
+  :Each slot reads an external symbol\nor the confidence ordinal 0..3 of an earlier neuron;
+  :Sum the cells those symbols address;
+  :Record the inputs, the sum, and the confidence band.\nThe wire signal is that band's ordinal;
+  note right
+    Later steps read this snapshot.
+    A cell changed for this sample
+    does not affect the rest of the same walk.
+  end note
+}
+
+partition "2. Gaps, from the outputs backward" {
+  while (More neurons, from the outputs toward the inputs?) is (yes)
+    if (This neuron is an output?) then (yes)
+      if (Its band is already the requested one?) then (yes)
+        :Leave it with no gap;
+      else (no)
+        :Gap is the signed distance from the sum\nto the edge of the requested band;
+        :Target band is the requested band;
+      endif
+    else (hidden)
+      :Try each other confidence 0..3\non every consumer that still has a gap;
+      if (Another symbol's cell moves a consumer sum toward its gap?) then (yes)
+        :Target band is that confidence;
+        :Gap is the signed distance from this sum to that band;
+      else (no)
+        :Share is the sum of each consumer gap\ndivided by that consumer's input count;
+        if (The share is 0 but a consumer gap remains?) then (yes)
+          :Keep the sign of that gap;
+        else (no)
+        endif
+        if (The share is still 0?) then (yes)
+          :Leave this neuron with no gap;
+        else (no)
+          :Gap is that share.\nNo target band;
+        endif
+      endif
+    endif
+  endwhile (no)
+}
+
+partition "3. Rewrite the cells that fired" {
+  while (More neurons in forward order?) is (yes)
+    if (This neuron has no gap?) then (yes)
+      :Skip it;
+    else (no)
+      :Divider is learningDivider * (depth + 1) / layerWeight,\nand at least 1;
+      note right
+        Depth is the shortest hop count to an output.
+        Outputs stay at weight 1.
+        A heavier hidden layer spends more of the same share.
+      end note
+      if (A target band was chosen and the sum is already in it?) then (yes)
+        :Leave the table unchanged;
+      else (no)
+        if (A target band was chosen?) then (yes)
+          :Steps are the fresh signed gap divided by the divider,\nat least one step of the gap's sign;
+        else (share only)
+          :Steps are the share divided by the divider,\nat least one step of the share's sign;
+        endif
+        if (Strategy is SEQUENTIAL?) then (yes)
+          :Walk the addressed rows in order and wrap;
+        else (RANDOM)
+          :Pick a fresh addressed row for each step;
+        endif
+        :Add or subtract 1 in that cell,\nstopping at the signed-byte ends.\nCells this sample did not address stay as they are;
+      endif
+    endif
+  endwhile (no)
+}
+
+stop
+
+@enduml

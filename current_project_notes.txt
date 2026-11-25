@@ -49,6 +49,7 @@
 - Tree / IDS follow-up (CyberLeninka): search title "Исследование новой модели искусственного нейрона как элемента системы обнаружения сетевых атак".
 - Tests: `mvn22 -pl core test`
 - Usage: `CyberNetwork.externalInputs(n).bind(...).connect(...).output(...).build()`, then `teach` / `recall`.
+- Teaching activity: `teaching.puml` in the project root.
 
 ## 8. User Advice and Recommendations
 - User asked to drop `CyberTree` and stay on `CyberNetwork`. Keep the gap signed. Do not send a numeric derivative through a table index. XOR of separate bits still needs packed symbols or hidden neurons that already differ.
