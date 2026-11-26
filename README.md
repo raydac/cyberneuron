@@ -9,11 +9,13 @@ same cell rule teaches a single neuron. A stack does not send a derivative throu
 value as an index, so inside a cell the slope is zero. The paper states that limit directly. What travels instead is the
 signed gap described in [Teaching a stack](#teaching-a-stack).
 
-The module is Java 11. Build and test with `mvn22 -pl core test`.
+The module is Java 11. Build and test with `mvn -pl core test`.
 
 ## One neuron
 
-`CyberNeuron.of(inputSize, maxValue)` builds `inputSize` rows. Every row has `maxValue + 1` signed bytes. An input
+`CyberNeuron.of(inputSize, maxValue)` builds `inputSize` rows filled from a deterministic pseudo-random sequence.
+`CyberNeuron.of(inputSize, maxValue, random)` fills the initial table from a caller-supplied `Random`, so hidden
+neurons with the same shape can start with distinct tables. Every row has `maxValue + 1` signed bytes. An input
 vector is legal when it has one symbol per row and each symbol is in `0..maxValue`.
 
 ```text
@@ -46,9 +48,10 @@ neuron.teach(new int[] {0, 0}, LearnStrategy.SEQUENTIAL, ConfidenceDegree.NO);
 ```
 
 `teach` computes the sum. When the band is already the requested one, it returns. Otherwise it measures the gap to the
-edge of that band and asks the strategy to spend that many `+1` or `-1` steps on the addressed cells only. Other cells
-stay as they are. `SEQUENTIAL` walks the rows in order and wraps. `RANDOM` picks a row for each step, so two neurons
-taught on the same sample can mark different cells.
+edge of that band and asks the strategy to spend that many `+1` or `-1` steps on the addressed unsaturated cells only.
+Other cells stay as they are. `SEQUENTIAL` walks the rows in order, skipping cells already at `-128` or `127`, and
+wraps. `RANDOM` picks an unsaturated row for each step, so repeated small nudges or two neurons taught on the same
+sample can mark different cells.
 
 The fourth argument is the paper's learning divider. The step count is the gap divided by that number, and at least one
 step while the sum is still outside the band. Divider `4` is the rate in the paper's experiments (`k = 0.25`). Divider
@@ -76,8 +79,8 @@ CyberNetwork network = CyberNetwork.externalInputs(1)
         .output(decision)
         .build();
 
-network.teach(new int[] {0},List.of(ConfidenceDegree.YES),LearnStrategy.SEQUENTIAL,1);
-        network.teach(new int[] {1},List.of(ConfidenceDegree.NO),LearnStrategy.SEQUENTIAL,1);
+network.teach(new int[] {0}, List.of(ConfidenceDegree.YES), LearnStrategy.SEQUENTIAL, 1);
+network.teach(new int[] {1}, List.of(ConfidenceDegree.NO), LearnStrategy.SEQUENTIAL, 1);
 List<ConfidenceDegree> bands = network.recall(new int[] {0});
 ```
 
@@ -96,11 +99,15 @@ The snapshot is what the correction reads, so a cell changed on this sample does
    negative gap lowers them. Lowering alone cannot lift a zeroed table into `YES`.
 
 2. **Backward walk.** Neurons are visited from the outputs toward the inputs. A hidden neuron is updated only when a
-   consumer it feeds still has a gap.
-   - Another confidence symbol is tried against the consumer. If that symbol's cell moves the consumer's sum toward
-     the gap, the hidden neuron is taught toward that confidence. The cell values are what choose the symbol.
-   - Otherwise each input that fired takes an equal share of the consumer's gap, `downstream / inputCount`. When that
-     integer share is 0 but a gap remains, the nudge keeps the gap's sign.
+   consumer it feeds still has pressure.
+   - Each other confidence symbol `0..3` is scored across all consumers of the hidden neuron, counting both error
+     reduction on unsatisfied consumers and any band damage to already-satisfied consumers (while rejecting opposing
+     transitions onto non-inhibitory cells). If a symbol yields a net reduction in consumer error, the hidden neuron
+     steps toward that confidence, bounded by its share of downstream error, and propagates pressure upstream (aiming
+     at the band center for bounded bands `MAY_BE_NO` and `MAY_BE_YES` to preserve margin).
+   - Otherwise, when stepping does not break satisfied consumers more than the remaining error, each input that fired
+     takes its slot-weighted share of consumer pressure, `downstream * slots / inputCount` (keeping the sign when the
+     truncated share is `0`).
 
 3. **Step size.** The divider applied to a neuron is `learningDivider * (depth + 1) / layerWeight`, and at least 1.
    Depth is the shortest hop count from that neuron to an output. Hidden neurons start at weight 1, so layers left
@@ -112,13 +119,14 @@ Declare only the last neurons as outputs. An output is trained to the band the c
 the gap of some further consumer.
 
 This is credit assignment for the cells that fired. It is not a derivative through the index: inside a cell the slope
-is still zero, and the next layer only sees the confidence symbol. Two hidden neurons built by `of` with the same
-shape start as copies of one table, and identical inputs keep them copies. A chain learns a map such as NOT, including a
-chain of eight neurons. Two outputs can be taught together when each has its own detectors: on two bits, one head
-learns OR and the other learns AND. Detectors shared by both heads receive both gaps and can cancel. Four separate
-detectors also learn a door rule: grant entry only when the badge is present, the hour is inside the window, the lock
-is released, and a guard is on duty. A flat sum of separate bits still cannot learn XOR. Pack those bits into one symbol
-when one neuron must store the interaction.
+is still zero, and the next layer only sees the confidence symbol. Two hidden neurons built by `of(inputSize, maxValue)`
+with the same shape start as copies of one table; pass distinct `Random` instances to `of(inputSize, maxValue, random)`
+when symmetric hidden neurons must specialize (for example, two 2-input hidden neurons solving XOR). A chain learns a
+map such as NOT, including a chain of eight neurons. Shared hidden detectors can feed simultaneous OR and AND output
+heads, three-input OR and 2-of-3 majority vote converge from zeroed tables, hidden pair detectors solve
+`(a AND b) OR (c AND d)`, and four separate detectors learn a door rule (grant entry only when the badge is present,
+the hour is inside the window, the lock is released, and a guard is on duty). A single flat neuron over separate bits
+still cannot learn XOR; pack those bits into one symbol when a single neuron must store the interaction.
 
 ## Where capacity lives
 
