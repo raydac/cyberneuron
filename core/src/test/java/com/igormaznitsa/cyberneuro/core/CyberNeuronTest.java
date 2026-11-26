@@ -4,12 +4,16 @@ import static com.igormaznitsa.cyberneuro.core.ConfidenceDegree.MAY_BE_NO;
 import static com.igormaznitsa.cyberneuro.core.ConfidenceDegree.MAY_BE_YES;
 import static com.igormaznitsa.cyberneuro.core.ConfidenceDegree.NO;
 import static com.igormaznitsa.cyberneuro.core.ConfidenceDegree.YES;
+import static com.igormaznitsa.cyberneuro.core.LearnStrategy.RANDOM;
 import static com.igormaznitsa.cyberneuro.core.LearnStrategy.SEQUENTIAL;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Arrays;
+import java.util.Random;
 import org.junit.jupiter.api.Test;
 
 class CyberNeuronTest {
@@ -150,6 +154,94 @@ class CyberNeuronTest {
     }
 
     assertFalse(this.solves(neuron, inputs, positive));
+  }
+
+  @Test
+  void testTeachMayBeNoAcrossBoundary25() {
+    final CyberNeuron neuron = CyberNeuron.of(1, 1);
+    neuron.fill(new byte[] {25, 0});
+
+    assertEquals(NO, neuron.activateAsConfidence(new int[] {0}).get(0));
+    neuron.teach(new int[] {0}, SEQUENTIAL, MAY_BE_NO, 1);
+    assertEquals(26, neuron.calc(new int[] {0}));
+    assertEquals(MAY_BE_NO, neuron.activateAsConfidence(new int[] {0}).get(0));
+  }
+
+  @Test
+  void testSignedGapAndTeachKeepMultiRowSumsBeyondByteBoundsInBand() {
+    final CyberNeuron neuron = CyberNeuron.of(2, 1);
+    neuron.fill(new byte[] {-100, 100, -100, 100});
+
+    assertEquals(0, CyberNeuron.signedGap(-200, NO));
+    assertEquals(0, CyberNeuron.signedGap(200, YES));
+
+    neuron.teach(new int[] {0, 0}, SEQUENTIAL, NO, 1);
+    neuron.teach(new int[] {1, 1}, SEQUENTIAL, YES, 1);
+
+    assertEquals(-200, neuron.calc(new int[] {0, 0}));
+    assertEquals(200, neuron.calc(new int[] {1, 1}));
+  }
+
+  @Test
+  void testLearnStrategiesRedistributeStepsWhenCellsSaturate() {
+    final CyberNeuron sequentialNeuron = CyberNeuron.of(2, 1);
+    sequentialNeuron.fill(new byte[] {Byte.MAX_VALUE, 0, 0, 0});
+    sequentialNeuron.nudge(new int[] {0, 0}, SEQUENTIAL, 20, 1);
+    assertEquals(Byte.MAX_VALUE, sequentialNeuron.getTableValue(0));
+    assertEquals(20, sequentialNeuron.getTableValue(2));
+
+    final CyberNeuron randomNeuron = CyberNeuron.of(2, 1);
+    randomNeuron.fill(new byte[] {Byte.MIN_VALUE, 0, 0, 0});
+    randomNeuron.nudge(new int[] {0, 0}, RANDOM, -15, 1);
+    assertEquals(Byte.MIN_VALUE, randomNeuron.getTableValue(0));
+    assertEquals(-15, randomNeuron.getTableValue(2));
+  }
+
+  @Test
+  void testLockBlocksAllMutationsUntilUnlocked() {
+    final CyberNeuron neuron = CyberNeuron.of(1, 1);
+    neuron.fill(new byte[] {0, 0});
+    neuron.setLock(true);
+
+    assertTrue(neuron.isLocked());
+    assertThrows(IllegalStateException.class, () -> neuron.setTableValue(0, 5));
+    assertThrows(IllegalStateException.class, () -> neuron.fill(new byte[] {1, 1}));
+    assertThrows(IllegalStateException.class, () -> neuron.teach(new int[] {0}, SEQUENTIAL, YES));
+    assertThrows(IllegalStateException.class, () -> neuron.nudge(new int[] {0}, SEQUENTIAL, 5, 1));
+    assertThrows(IllegalStateException.class, () -> SEQUENTIAL.accept(neuron, new int[] {0}, 5));
+
+    neuron.setLock(false);
+    neuron.setTableValue(0, 7);
+    assertEquals(7, neuron.getTableValue(0));
+  }
+
+  @Test
+  void testValidationAndSeededInitialization() {
+    assertThrows(IllegalArgumentException.class, () -> new CyberNeuron(0, 1));
+    assertThrows(IllegalArgumentException.class, () -> new CyberNeuron(1, -1));
+    assertThrows(IllegalArgumentException.class, () -> new CyberNeuron(1, Integer.MAX_VALUE));
+    assertThrows(IllegalArgumentException.class, () -> new CyberNeuron(Integer.MAX_VALUE, 2));
+
+    final CyberNeuron neuron = CyberNeuron.of(2, 1);
+    assertThrows(IllegalArgumentException.class, () -> neuron.calc(-1, new int[] {0, 0, 0}));
+    assertThrows(IllegalArgumentException.class,
+        () -> neuron.nudge(new int[] {0, 2}, RANDOM, 4, 1));
+    assertThrows(IllegalArgumentException.class,
+        () -> SEQUENTIAL.accept(neuron, new int[] {2, 0}, 2));
+
+    final CyberNeuron seededA = CyberNeuron.of(4, 3, new Random(101L));
+    final CyberNeuron seededA2 = CyberNeuron.of(4, 3, new Random(101L));
+    final CyberNeuron seededB = CyberNeuron.of(4, 3, new Random(202L));
+    final byte[] tableA = new byte[16];
+    final byte[] tableA2 = new byte[16];
+    final byte[] tableB = new byte[16];
+    for (int i = 0; i < 16; i++) {
+      tableA[i] = (byte) seededA.getTableValue(i);
+      tableA2[i] = (byte) seededA2.getTableValue(i);
+      tableB[i] = (byte) seededB.getTableValue(i);
+    }
+    assertArrayEquals(tableA, tableA2);
+    assertFalse(Arrays.equals(tableA, tableB));
   }
 
   private boolean solves(

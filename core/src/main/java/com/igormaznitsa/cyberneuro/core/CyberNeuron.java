@@ -1,9 +1,9 @@
 package com.igormaznitsa.cyberneuro.core;
 
-import static java.lang.String.format;
+import static java.util.Objects.requireNonNull;
 
-import java.lang.reflect.Array;
 import java.util.List;
+import java.util.Random;
 
 /**
  * Substitution-table neuron.
@@ -22,11 +22,12 @@ import java.util.List;
  *
  * <p>Not thread-safe. {@link #setLock(boolean)} makes later writes throw.
  */
-public class CyberNeuron implements HasLock {
+public final class CyberNeuron implements HasLock {
 
   private static final int THRESHOLD_NO = Byte.MAX_VALUE / 5;
   private static final int THRESHOLD_YES = Byte.MAX_VALUE - THRESHOLD_NO;
   private static final int THRESHOLD_MIDDLE = Byte.MAX_VALUE / 2;
+
   private final int inputSize;
   private final int rowLength;
   private final byte[] table;
@@ -35,38 +36,87 @@ public class CyberNeuron implements HasLock {
 
   /**
    * Creates a neuron and fills the table from a fixed pseudo-random sequence.
-   * Range checks live in {@link #of(int, int)}; this constructor trusts the numbers.
    *
-   * @param inputSize     number of substitution rows
+   * @param inputSize     number of substitution rows; must be positive
    * @param maxInputValue largest legal symbol; each row has {@code maxInputValue + 1} cells
+   * @throws IllegalArgumentException when {@code inputSize} is not positive,
+   *                                  {@code maxInputValue} is negative, or the table size overflows
    */
   public CyberNeuron(final int inputSize, final int maxInputValue) {
-    this.inputSize = inputSize;
-    this.rowLength = maxInputValue + 1;
-    this.table = new byte[inputSize * this.rowLength];
-    fillByPseudoRnd(this.table);
+    this(TableSpec.ofDefaultRandom(inputSize, maxInputValue));
   }
 
   /**
-   * Creates a neuron.
+   * Creates a neuron and fills the table from {@code random}.
+   *
+   * @param inputSize     number of substitution rows; must be positive
+   * @param maxInputValue largest legal symbol; each row has {@code maxInputValue + 1} cells
+   * @param random        source of initial cell bytes
+   * @throws IllegalArgumentException when {@code inputSize} is not positive,
+   *                                  {@code maxInputValue} is negative, or the table size overflows
+   * @throws NullPointerException     when {@code random} is null
+   */
+  public CyberNeuron(final int inputSize, final int maxInputValue, final Random random) {
+    this(TableSpec.ofRandom(inputSize, maxInputValue, random));
+  }
+
+  private CyberNeuron(final TableSpec spec) {
+    this.inputSize = spec.inputSize;
+    this.rowLength = spec.rowLength;
+    this.table = spec.table;
+  }
+
+  /**
+   * Creates a neuron with a deterministic pseudo-random table fill.
    *
    * @param inputSize number of substitution rows; must be positive
-   * @param maxValue largest legal symbol on every row; zero yields a one-cell row
+   * @param maxValue  largest legal symbol on every row; zero yields a one-cell row
    * @return neuron whose table is a fixed pseudo-random fill
-   * @throws IllegalArgumentException when {@code inputSize} is not positive
-   *     or {@code maxValue} is negative
+   * @throws IllegalArgumentException when {@code inputSize} is not positive,
+   *                                  {@code maxValue} is negative, or the table size overflows
    */
-  public static CyberNeuron of(
-      final int inputSize,
-      final int maxValue
-  ) {
+  public static CyberNeuron of(final int inputSize, final int maxValue) {
+    return new CyberNeuron(inputSize, maxValue);
+  }
+
+  /**
+   * Creates a neuron whose initial table bytes are drawn from {@code random}.
+   *
+   * @param inputSize number of substitution rows; must be positive
+   * @param maxValue  largest legal symbol on every row; zero yields a one-cell row
+   * @param random    source of initial cell bytes
+   * @return neuron initialized from {@code random}
+   * @throws IllegalArgumentException when {@code inputSize} is not positive,
+   *                                  {@code maxValue} is negative, or the table size overflows
+   * @throws NullPointerException     when {@code random} is null
+   */
+  public static CyberNeuron of(final int inputSize, final int maxValue, final Random random) {
+    return new CyberNeuron(inputSize, maxValue, random);
+  }
+
+  private static int requirePositiveInputs(final int inputSize) {
     if (inputSize <= 0) {
       throw new IllegalArgumentException("Number of inputs must be positive one");
     }
-    if (maxValue < 0) {
+    return inputSize;
+  }
+
+  private static int computeRowLength(final int maxInputValue) {
+    if (maxInputValue < 0) {
       throw new IllegalArgumentException("Max value must not be negative one");
     }
-    return new CyberNeuron(inputSize, maxValue);
+    if (maxInputValue == Integer.MAX_VALUE) {
+      throw new IllegalArgumentException("Max value is too large");
+    }
+    return maxInputValue + 1;
+  }
+
+  private static int computeTableLength(final int inputSize, final int rowLength) {
+    final long total = (long) inputSize * rowLength;
+    if (total > Integer.MAX_VALUE) {
+      throw new IllegalArgumentException("Neuron table size exceeds integer limit");
+    }
+    return (int) total;
   }
 
   private static void fillByPseudoRnd(final byte[] array) {
@@ -85,105 +135,38 @@ public class CyberNeuron implements HasLock {
     return diff > 0 ? 1 : -1;
   }
 
-  public boolean isLocked() {
-    return this.locked;
-  }
-
   /**
-   * Freezes or releases table writes.
-   *
-   * <p>A locked neuron rejects {@link #fill(byte[])} and
-   * {@link #teach(int[], LearnStrategy, ConfidenceDegree)}.
-   *
-   * @param flag {@code true} to reject later writes, {@code false} to allow them
-   */
-  @Override
-  public void setLock(boolean flag) {
-    this.locked = flag;
-  }
-
-  int getTableValue(final int index) {
-    return this.table[index];
-  }
-
-  void setTableValue(final int index, final int value) {
-    this.assertNonLocked();
-    this.table[index] = (byte) value;
-  }
-
-  public int getInputSize() {
-    return this.inputSize;
-  }
-
-  private void assertArraySize(final Object array) {
-    final int expected = this.rowLength * this.inputSize;
-    final int provided = Array.getLength(array);
-    if (provided != expected) {
-      throw new IllegalArgumentException(
-          "Expected size of array is " + expected + " but provided " + provided);
-    }
-  }
-
-  /**
-   * Cells in one substitution row, one past the largest legal symbol.
-   *
-   * @return row length fixed at construction
-   */
-  public int getRowLength() {
-    return this.rowLength;
-  }
-
-  /**
-   * Replaces every table cell.
-   *
-   * @param values row-major bytes, length {@code inputSize * rowLength}
-   * @throws IllegalArgumentException when {@code values} has a different length
-   * @throws IllegalStateException when the neuron is locked
-   */
-  public void fill(final byte[] values) {
-    this.assertNonLocked();
-    this.assertArraySize(values);
-    for (int i = 0; i < values.length; i++) {
-      this.setTableValue(i, values[i]);
-    }
-  }
-
-  /**
-   * Moves the sum for {@code inputVector} into the band of {@code expectedConfidence}.
-   * A sample that already lands in that band is left untouched. The whole gap is
-   * applied in this call; use the four-argument method to scale it.
-   *
-   * @param inputVector one symbol per row, each inside {@code 0..rowLength-1}
-   * @param learnStrategy how the correction is spread across the addressed cells
-   * @param expectedConfidence band the sum should enter
-   * @throws IllegalArgumentException when the vector length or a symbol is illegal
-   * @throws IllegalStateException when the neuron is locked, or the sum is already
-   *     inside the numeric band while the confidence label differs
-   */
-  public void teach(final int[] inputVector, final LearnStrategy learnStrategy,
-                    final ConfidenceDegree expectedConfidence) {
-    this.teach(inputVector, learnStrategy, expectedConfidence, 1);
-  }
-
-  /**
-   * Signed change that would put {@code sum} into {@code expected}.
-   * Zero when the sum is already in that band, or when it sits in the narrow
-   * window where the band label and the numeric edges disagree.
+   * Signed change that puts {@code sum} into {@code expected}, or zero when
+   * {@code sum} is already inside that band.
    *
    * @param sum      neuron sum
    * @param expected band the sum should enter
-   * @return positive to raise the sum, negative to lower it
+   * @return positive to raise the sum, negative to lower it, zero when already in band
    */
   static int signedGap(final int sum, final ConfidenceDegree expected) {
+    requireNonNull(expected, "expected must not be null");
+    if (bandOf(sum) == expected) {
+      return 0;
+    }
     final int lower = lowerEdge(expected);
     final int upper = upperEdge(expected);
     if (sum < lower) {
-      return lower - sum;
+      return saturateToInt((long) lower - sum);
     }
     if (sum > upper) {
-      return upper - sum;
+      return saturateToInt((long) upper - sum);
     }
     return 0;
+  }
+
+  private static int saturateToInt(final long delta) {
+    if (delta > Integer.MAX_VALUE) {
+      return Integer.MAX_VALUE;
+    }
+    if (delta < Integer.MIN_VALUE) {
+      return Integer.MIN_VALUE;
+    }
+    return (int) delta;
   }
 
   private static int lowerEdge(final ConfidenceDegree expected) {
@@ -192,10 +175,10 @@ public class CyberNeuron implements HasLock {
         return THRESHOLD_YES + 1;
       case MAY_BE_YES:
         return THRESHOLD_MIDDLE + 1;
-      case NO:
-        return Byte.MIN_VALUE;
       case MAY_BE_NO:
-        return THRESHOLD_NO;
+        return THRESHOLD_NO + 1;
+      case NO:
+        return Integer.MIN_VALUE;
       default:
         throw new IllegalArgumentException("Unsupported confidence: " + expected);
     }
@@ -204,13 +187,13 @@ public class CyberNeuron implements HasLock {
   private static int upperEdge(final ConfidenceDegree expected) {
     switch (expected) {
       case YES:
-        return Byte.MAX_VALUE;
+        return Integer.MAX_VALUE;
       case MAY_BE_YES:
         return THRESHOLD_YES - 1;
-      case NO:
-        return THRESHOLD_NO - 1;
       case MAY_BE_NO:
         return THRESHOLD_MIDDLE - 1;
+      case NO:
+        return THRESHOLD_NO - 1;
       default:
         throw new IllegalArgumentException("Unsupported confidence: " + expected);
     }
@@ -229,6 +212,85 @@ public class CyberNeuron implements HasLock {
     return ConfidenceDegree.NO;
   }
 
+  @Override
+  public boolean isLocked() {
+    return this.locked;
+  }
+
+  /**
+   * Freezes or releases table writes.
+   *
+   * <p>A locked neuron rejects {@link #fill(byte[])} and
+   * {@link #teach(int[], LearnStrategy, ConfidenceDegree)}.
+   *
+   * @param flag {@code true} to reject later writes, {@code false} to allow them
+   */
+  @Override
+  public void setLock(final boolean flag) {
+    this.locked = flag;
+  }
+
+  int getTableValue(final int index) {
+    return this.table[index];
+  }
+
+  void setTableValue(final int index, final int value) {
+    this.assertNonLocked();
+    this.table[index] = (byte) value;
+  }
+
+  public int getInputSize() {
+    return this.inputSize;
+  }
+
+  /**
+   * Cells in one substitution row, one past the largest legal symbol.
+   *
+   * @return row length fixed at construction
+   */
+  public int getRowLength() {
+    return this.rowLength;
+  }
+
+  /**
+   * Replaces every table cell.
+   *
+   * @param values row-major bytes, length {@code inputSize * rowLength}
+   * @throws IllegalArgumentException when {@code values} is null or has a different length
+   * @throws IllegalStateException    when the neuron is locked
+   */
+  public void fill(final byte[] values) {
+    this.assertNonLocked();
+    if (values == null) {
+      throw new IllegalArgumentException("Values must not be null");
+    }
+    if (values.length != this.table.length) {
+      throw new IllegalArgumentException(
+          "Expected size of array is " + this.table.length + " but provided " + values.length);
+    }
+    System.arraycopy(values, 0, this.table, 0, values.length);
+  }
+
+  /**
+   * Moves the sum for {@code inputVector} into the band of {@code expectedConfidence}.
+   * A sample that already lands in that band is left untouched. The whole gap is
+   * applied in this call; use the four-argument method to scale it.
+   *
+   * @param inputVector        one symbol per row, each inside {@code 0..rowLength-1}
+   * @param learnStrategy      how the correction is spread across the addressed cells
+   * @param expectedConfidence band the sum should enter
+   * @throws IllegalArgumentException when the vector length or a symbol is illegal
+   * @throws IllegalStateException    when the neuron is locked
+   * @throws NullPointerException     when {@code learnStrategy}
+   *                                  or {@code expectedConfidence} is null
+   */
+  public void teach(
+      final int[] inputVector,
+      final LearnStrategy learnStrategy,
+      final ConfidenceDegree expectedConfidence) {
+    this.teach(inputVector, learnStrategy, expectedConfidence, 1);
+  }
+
   /**
    * Same band correction as {@link #teach(int[], LearnStrategy, ConfidenceDegree)},
    * with the paper's learning divider. The step count is the gap divided by
@@ -241,26 +303,32 @@ public class CyberNeuron implements HasLock {
    * @param learningDivider    positive divisor of the raw gap; {@code 1} spends the whole gap
    * @throws IllegalArgumentException when {@code learningDivider} is not positive,
    *                                  or the vector length or a symbol is illegal
-   * @throws IllegalStateException    when the neuron is locked, or the sum is already
-   *                                  inside the numeric band while the confidence label differs
+   * @throws IllegalStateException    when the neuron is locked
+   * @throws NullPointerException     when {@code learnStrategy}
+   *                                  or {@code expectedConfidence} is null
    */
-  public void teach(final int[] inputVector, final LearnStrategy learnStrategy,
-                    final ConfidenceDegree expectedConfidence, final int learningDivider) {
+  public void teach(
+      final int[] inputVector,
+      final LearnStrategy learnStrategy,
+      final ConfidenceDegree expectedConfidence,
+      final int learningDivider) {
     this.assertNonLocked();
+    requireNonNull(learnStrategy, "learnStrategy must not be null");
+    requireNonNull(expectedConfidence, "expectedConfidence must not be null");
     if (learningDivider < 1) {
       throw new IllegalArgumentException("Learning divider must be positive");
     }
+    if (inputVector == null) {
+      throw new IllegalArgumentException("Input vector must not be null");
+    }
     if (this.inputSize != inputVector.length) {
       throw new IllegalArgumentException(
-          format("Wrong input size: %d != %d", this.inputSize, inputVector.length));
+          "Wrong input size: " + this.inputSize + " != " + inputVector.length);
     }
     final int current = this.calc(inputVector);
-    if (bandOf(current) == expectedConfidence) {
-      return;
-    }
     final int diff = signedGap(current, expectedConfidence);
     if (diff == 0) {
-      throw new IllegalStateException("Unexpected state");
+      return;
     }
 
     learnStrategy.accept(this, inputVector, scaledStep(diff, learningDivider));
@@ -281,6 +349,7 @@ public class CyberNeuron implements HasLock {
       final int steps,
       final int learningDivider) {
     this.assertNonLocked();
+    requireNonNull(learnStrategy, "learnStrategy must not be null");
     if (learningDivider < 1) {
       throw new IllegalArgumentException("Learning divider must be positive");
     }
@@ -345,6 +414,13 @@ public class CyberNeuron implements HasLock {
    * @throws IllegalArgumentException when the vector length or a symbol is illegal
    */
   public int calc(final int[] inputs) {
+    if (inputs == null) {
+      throw new IllegalArgumentException("Inputs must not be null");
+    }
+    if (inputs.length != this.inputSize) {
+      throw new IllegalArgumentException(
+          "Wrong input size: " + this.inputSize + " != " + inputs.length);
+    }
     return this.calc(0, inputs);
   }
 
@@ -354,19 +430,24 @@ public class CyberNeuron implements HasLock {
    * @param offset index of the symbol for row 0
    * @param inputs symbols; the tail from {@code offset} must cover every row
    * @return signed sum of those cells
-   * @throws IllegalArgumentException when the tail is short or a symbol is outside its row
+   * @throws IllegalArgumentException when {@code offset} is negative, the tail is short,
+   *                                  or a symbol is outside its row
    */
   public int calc(final int offset, final int[] inputs) {
-    if (inputs.length - offset < this.inputSize) {
-      throw new IllegalArgumentException("Unexpected inputs size: " + (inputs.length - offset));
+    if (inputs == null) {
+      throw new IllegalArgumentException("Inputs must not be null");
+    }
+    if (offset < 0 || inputs.length - offset < this.inputSize) {
+      throw new IllegalArgumentException(
+          "Unexpected inputs size from offset " + offset + ": " + inputs.length);
     }
     int acc = 0;
     int offsetRow = 0;
     for (int i = 0; i < this.inputSize; i++) {
       final int value = inputs[i + offset];
       if (value < 0 || value >= this.rowLength) {
-        throw new IllegalArgumentException(format(
-            "Input %d has value %d outside 0..%d", i, value, this.rowLength - 1));
+        throw new IllegalArgumentException(
+            "Input " + i + " has value " + value + " outside 0.." + (this.rowLength - 1));
       }
       acc += this.getTableValue(offsetRow + value);
       offsetRow += this.rowLength;
@@ -399,5 +480,37 @@ public class CyberNeuron implements HasLock {
     }
     buffer.append(']');
     return buffer.toString();
+  }
+
+  private static final class TableSpec {
+    private final int inputSize;
+    private final int rowLength;
+    private final byte[] table;
+
+    private TableSpec(final int inputSize, final int rowLength, final byte[] table) {
+      this.inputSize = inputSize;
+      this.rowLength = rowLength;
+      this.table = table;
+    }
+
+    private static TableSpec ofDefaultRandom(final int inputSize, final int maxInputValue) {
+      final int validInputs = requirePositiveInputs(inputSize);
+      final int validRowLength = computeRowLength(maxInputValue);
+      final byte[] table = new byte[computeTableLength(validInputs, validRowLength)];
+      fillByPseudoRnd(table);
+      return new TableSpec(validInputs, validRowLength, table);
+    }
+
+    private static TableSpec ofRandom(
+        final int inputSize,
+        final int maxInputValue,
+        final Random random) {
+      requireNonNull(random, "random must not be null");
+      final int validInputs = requirePositiveInputs(inputSize);
+      final int validRowLength = computeRowLength(maxInputValue);
+      final byte[] table = new byte[computeTableLength(validInputs, validRowLength)];
+      random.nextBytes(table);
+      return new TableSpec(validInputs, validRowLength, table);
+    }
   }
 }

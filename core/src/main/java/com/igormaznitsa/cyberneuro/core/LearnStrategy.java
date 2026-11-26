@@ -1,6 +1,8 @@
 package com.igormaznitsa.cyberneuro.core;
 
-import java.util.Random;
+import static java.util.Objects.requireNonNull;
+
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * How one teaching step spends a sum correction on the cells the sample addressed.
@@ -11,63 +13,115 @@ import java.util.Random;
 public enum LearnStrategy {
 
   /**
-   * Walks rows from the first, one step per row, then wraps until the steps are spent.
+   * Walks rows from the starting offset, one step per unsaturated row, then wraps
+   * until the steps are spent or all addressed cells saturate.
    */
-  SEQUENTIAL((neuron, inputs, modifier) -> {
-    int simpleModifier = modifier;
-    final boolean increment = simpleModifier >= 0;
-    simpleModifier = Math.abs(simpleModifier);
-    int index = simpleModifier % neuron.getInputSize();
-    if (simpleModifier >= 0) {
-      for (int m = 0; m < simpleModifier; m++) {
-        final int rowNumber = index % neuron.getInputSize();
-        final int tableIndex = neuron.getRowLength() * rowNumber + inputs[rowNumber];
-        int value = neuron.getTableValue(tableIndex);
-        if (increment) {
-          if (value < Byte.MAX_VALUE) {
-            value++;
-            neuron.setTableValue(tableIndex, value);
-          }
-        } else {
-          if (value > Byte.MIN_VALUE) {
-            value--;
-            neuron.setTableValue(tableIndex, value);
-          }
-        }
-        index++;
-      }
-    }
-  }),
+  SEQUENTIAL(LearnStrategy::applySequential),
 
-  /** Picks a fresh row for every step, so the same lesson can mark different cells. */
-  RANDOM((neuron, inputs, modifier) -> {
-    int simpleModifier = modifier;
-    final boolean increment = simpleModifier >= 0;
-    simpleModifier = Math.abs(simpleModifier);
-    if (simpleModifier >= 0) {
-      for (int m = 0; m < simpleModifier; m++) {
-        final int rowNumber = Internal.RND.nextInt(neuron.getInputSize());
-        final int tableIndex = neuron.getRowLength() * rowNumber + inputs[rowNumber];
-        int value = neuron.getTableValue(tableIndex);
-        if (increment) {
-          if (value < Byte.MAX_VALUE) {
-            value++;
-            neuron.setTableValue(tableIndex, value);
-          }
-        } else {
-          if (value > Byte.MIN_VALUE) {
-            value--;
-            neuron.setTableValue(tableIndex, value);
-          }
-        }
-      }
-    }
-  });
+  /**
+   * Picks a random unsaturated row for every step until the steps are spent
+   * or all addressed cells saturate.
+   */
+  RANDOM(LearnStrategy::applyRandom);
 
   private final TripleConsumer<CyberNeuron, int[], Integer> changer;
 
   LearnStrategy(final TripleConsumer<CyberNeuron, int[], Integer> changer) {
     this.changer = changer;
+  }
+
+  private static void validateCall(final CyberNeuron neuron, final int[] inputs) {
+    requireNonNull(neuron, "neuron must not be null");
+    requireNonNull(inputs, "inputs must not be null");
+    neuron.assertNonLocked();
+    final int inputSize = neuron.getInputSize();
+    if (inputs.length != inputSize) {
+      throw new IllegalArgumentException(
+          "Wrong input size: " + inputSize + " != " + inputs.length);
+    }
+    final int rowLength = neuron.getRowLength();
+    for (int row = 0; row < inputSize; row++) {
+      final int symbol = inputs[row];
+      if (symbol < 0 || symbol >= rowLength) {
+        throw new IllegalArgumentException(
+            "Input " + row + " has value " + symbol + " outside 0.." + (rowLength - 1));
+      }
+    }
+  }
+
+  private static void applySequential(
+      final CyberNeuron neuron,
+      final int[] inputs,
+      final int modifier) {
+    validateCall(neuron, inputs);
+    if (modifier == 0) {
+      return;
+    }
+    final boolean increment = modifier > 0;
+    long remaining = Math.abs((long) modifier);
+    final int inputSize = neuron.getInputSize();
+    final int rowLength = neuron.getRowLength();
+    int row = (int) (remaining % inputSize);
+    int skippedInRow = 0;
+    while (remaining > 0L && skippedInRow < inputSize) {
+      final int tableIndex = rowLength * row + inputs[row];
+      row = (row + 1) % inputSize;
+      if (stepCell(neuron, tableIndex, increment)) {
+        remaining--;
+        skippedInRow = 0;
+      } else {
+        skippedInRow++;
+      }
+    }
+  }
+
+  private static void applyRandom(
+      final CyberNeuron neuron,
+      final int[] inputs,
+      final int modifier) {
+    validateCall(neuron, inputs);
+    if (modifier == 0) {
+      return;
+    }
+    final boolean increment = modifier > 0;
+    long remaining = Math.abs((long) modifier);
+    final int inputSize = neuron.getInputSize();
+    final int rowLength = neuron.getRowLength();
+    final int[] activeIndices = new int[inputSize];
+    int activeCount = 0;
+    for (int row = 0; row < inputSize; row++) {
+      final int tableIndex = rowLength * row + inputs[row];
+      if (canStep(neuron.getTableValue(tableIndex), increment)) {
+        activeIndices[activeCount++] = tableIndex;
+      }
+    }
+    final ThreadLocalRandom random = ThreadLocalRandom.current();
+    while (remaining > 0L && activeCount > 0) {
+      final int pick = random.nextInt(activeCount);
+      final int tableIndex = activeIndices[pick];
+      stepCell(neuron, tableIndex, increment);
+      remaining--;
+      if (!canStep(neuron.getTableValue(tableIndex), increment)) {
+        activeIndices[pick] = activeIndices[activeCount - 1];
+        activeCount--;
+      }
+    }
+  }
+
+  private static boolean canStep(final int value, final boolean increment) {
+    return increment ? value < Byte.MAX_VALUE : value > Byte.MIN_VALUE;
+  }
+
+  private static boolean stepCell(
+      final CyberNeuron neuron,
+      final int tableIndex,
+      final boolean increment) {
+    final int value = neuron.getTableValue(tableIndex);
+    if (!canStep(value, increment)) {
+      return false;
+    }
+    neuron.setTableValue(tableIndex, increment ? value + 1 : value - 1);
+    return true;
   }
 
   /**
@@ -79,9 +133,5 @@ public enum LearnStrategy {
    */
   public void accept(final CyberNeuron neuron, final int[] inputs, final int modifier) {
     this.changer.accept(neuron, inputs, modifier);
-  }
-
-  private static final class Internal {
-    private static final Random RND = new Random();
   }
 }

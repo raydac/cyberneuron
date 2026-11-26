@@ -19,21 +19,23 @@ import java.util.Set;
  * signed gap of each output, then walks that error back through every neuron
  * that played a part. Each input of a consumer takes an equal share of the gap.
  * A hidden layer's weight divides the hop divider, so a heavier layer spends
- * more of that share. When another confidence selects a downstream cell that
- * reduces the gap, the neuron is taught toward that confidence. Hidden layers
- * use weight {@code 1} unless {@link Builder#layer(int, CyberNeuron...)} names
- * another positive weight. Declare only the terminal neurons as outputs.
- * Not thread-safe.
+ * more of that share. When another confidence selects downstream cells that
+ * reduce total consumer error without breaking satisfied outputs, the neuron is
+ * taught toward that confidence. Hidden layers use weight {@code 1} unless
+ * {@link Builder#layer(int, CyberNeuron...)} names another positive weight.
+ * Declare only the terminal neurons as outputs. Not thread-safe.
  */
 public final class CyberNetwork {
 
   private static final int EQUAL_LAYER_WEIGHT = 1;
+  private static final ConfidenceDegree[] CONFIDENCE_VALUES = ConfidenceDegree.values();
 
   private final int externalCount;
   private final List<CyberNeuron> order;
   private final List<CyberNeuron> outputs;
+  private final Map<CyberNeuron, Integer> outputIndices;
   private final Map<CyberNeuron, SlotSource[]> bindings;
-  private final Map<CyberNeuron, List<Feed>> outgoing;
+  private final Map<CyberNeuron, List<ConsumerLink>> outgoing;
   private final Map<CyberNeuron, Integer> layerWeights;
   private final Map<CyberNeuron, Integer> depthFromOutput;
 
@@ -41,13 +43,15 @@ public final class CyberNetwork {
       final int externalCount,
       final List<CyberNeuron> order,
       final List<CyberNeuron> outputs,
+      final Map<CyberNeuron, Integer> outputIndices,
       final Map<CyberNeuron, SlotSource[]> bindings,
-      final Map<CyberNeuron, List<Feed>> outgoing,
+      final Map<CyberNeuron, List<ConsumerLink>> outgoing,
       final Map<CyberNeuron, Integer> layerWeights,
       final Map<CyberNeuron, Integer> depthFromOutput) {
     this.externalCount = externalCount;
     this.order = order;
     this.outputs = outputs;
+    this.outputIndices = outputIndices;
     this.bindings = bindings;
     this.outgoing = outgoing;
     this.layerWeights = layerWeights;
@@ -68,6 +72,16 @@ public final class CyberNetwork {
     return new Builder(count);
   }
 
+  private static int aligned(final int effect, final int gap) {
+    if (effect == 0 || gap == 0) {
+      return 0;
+    }
+    if (Integer.signum(effect) != Integer.signum(gap)) {
+      return -Math.abs(effect);
+    }
+    return Math.min(Math.abs(effect), Math.abs(gap));
+  }
+
   /**
    * Confidence of each output neuron for this sample.
    *
@@ -78,7 +92,7 @@ public final class CyberNetwork {
    */
   public List<ConfidenceDegree> recall(final int[] external) {
     final Forward forward = this.forward(external);
-    final List<ConfidenceDegree> result = new ArrayList<>();
+    final List<ConfidenceDegree> result = new ArrayList<>(this.outputs.size());
     for (final CyberNeuron output : this.outputs) {
       result.add(forward.bands.get(output));
     }
@@ -107,7 +121,7 @@ public final class CyberNetwork {
       final CyberNeuron neuron = this.order.get(index);
       final String id = "N" + index;
       ids.put(neuron, id);
-      final String shape = this.outputs.contains(neuron) ? "box" : "oval";
+      final String shape = this.outputIndices.containsKey(neuron) ? "box" : "oval";
       builder.append('"').append(id).append("\" [color=green;shape=").append(shape).append("];")
           .append(eol);
     }
@@ -127,22 +141,15 @@ public final class CyberNetwork {
     return builder.toString();
   }
 
-  private static int aligned(final int effect, final int gap) {
-    if (effect == 0 || gap == 0 || Integer.signum(effect) != Integer.signum(gap)) {
-      return effect == 0 || gap == 0 ? 0 : -Math.abs(effect);
-    }
-    return Math.min(Math.abs(effect), Math.abs(gap));
-  }
-
   /**
    * Teaches the cells that fired while producing {@code expected}.
    * Each wrong output contributes its signed gap. That gap is pushed back
    * through every earlier neuron that played a part. Each of a consumer's
    * inputs takes an equal share of the gap. The layer weight divides the hop
    * divider, so a heavier layer spends more of that share. When another
-   * confidence selects a downstream cell that reduces the gap, the neuron is
-   * taught toward that confidence. Hidden layers use weight {@code 1} unless
-   * {@link Builder#layer(int, CyberNeuron...)} sets another positive weight.
+   * confidence selects downstream cells that reduce total consumer error, the
+   * neuron is taught toward that confidence. Hidden layers use weight {@code 1}
+   * unless {@link Builder#layer(int, CyberNeuron...)} sets another positive weight.
    *
    * @param external        one symbol per external input
    * @param expected        band of each output neuron, in output order
@@ -150,6 +157,8 @@ public final class CyberNetwork {
    * @param learningDivider positive divisor of each delta; each hop multiplies it
    * @throws IllegalArgumentException when a length, a symbol, or the divider is illegal
    * @throws IllegalStateException    when a neuron is locked
+   * @throws NullPointerException     when {@code expected}, an expected band,
+   *                                  or {@code learnStrategy} is null
    */
   public void teach(
       final int[] external,
@@ -165,24 +174,31 @@ public final class CyberNetwork {
       throw new IllegalArgumentException(
           "Expected " + this.outputs.size() + " output bands but got " + expected.size());
     }
-
-    final Forward forward = this.forward(external);
-    final Map<CyberNeuron, Integer> gaps = new HashMap<>();
-    final Map<CyberNeuron, ConfidenceDegree> targets = new HashMap<>();
-    for (int index = this.order.size() - 1; index >= 0; index--) {
-      this.assignGap(this.order.get(index), expected, forward, gaps, targets);
+    for (final ConfidenceDegree band : expected) {
+      requireNonNull(band, "expected confidence must not be null");
     }
     for (final CyberNeuron neuron : this.order) {
-      final Integer gap = gaps.get(neuron);
-      if (gap == null || gap == 0) {
+      neuron.assertNonLocked();
+    }
+
+    final Forward forward = this.forward(external);
+    final Map<CyberNeuron, Integer> pressures = new HashMap<>();
+    final Map<CyberNeuron, Integer> edits = new HashMap<>();
+    final Map<CyberNeuron, ConfidenceDegree> targets = new HashMap<>();
+    for (int index = this.order.size() - 1; index >= 0; index--) {
+      this.assignGap(this.order.get(index), expected, forward, pressures, edits, targets);
+    }
+    for (final CyberNeuron neuron : this.order) {
+      final Integer edit = edits.get(neuron);
+      if (edit == null || edit == 0) {
         continue;
       }
       final int divider = this.dividerFor(neuron, learningDivider);
       final ConfidenceDegree target = targets.get(neuron);
-      if (target != null) {
+      if (target != null && this.outputIndices.containsKey(neuron)) {
         neuron.teach(forward.inputs.get(neuron), learnStrategy, target, divider);
       } else {
-        neuron.nudge(forward.inputs.get(neuron), learnStrategy, gap, divider);
+        neuron.nudge(forward.inputs.get(neuron), learnStrategy, edit, divider);
       }
     }
   }
@@ -190,7 +206,7 @@ public final class CyberNetwork {
   private int dividerFor(final CyberNeuron neuron, final int learningDivider) {
     final Integer found = this.depthFromOutput.get(neuron);
     final int depth = found == null ? 0 : found;
-    final int weight = this.outputs.contains(neuron)
+    final int weight = this.outputIndices.containsKey(neuron)
         ? EQUAL_LAYER_WEIGHT
         : this.layerWeights.getOrDefault(neuron, EQUAL_LAYER_WEIGHT);
     final int hops = learningDivider * (depth + 1);
@@ -201,66 +217,137 @@ public final class CyberNetwork {
       final CyberNeuron neuron,
       final List<ConfidenceDegree> expected,
       final Forward forward,
-      final Map<CyberNeuron, Integer> gaps,
+      final Map<CyberNeuron, Integer> pressures,
+      final Map<CyberNeuron, Integer> edits,
       final Map<CyberNeuron, ConfidenceDegree> targets) {
-    final int outputIndex = this.outputs.indexOf(neuron);
-    if (outputIndex >= 0) {
+    final Integer outputIndex = this.outputIndices.get(neuron);
+    if (outputIndex != null) {
       final int sum = forward.sums.get(neuron);
       final ConfidenceDegree wanted = expected.get(outputIndex);
+      targets.put(neuron, wanted);
       if (CyberNeuron.bandOf(sum) != wanted) {
-        gaps.put(neuron, CyberNeuron.signedGap(sum, wanted));
+        final int gap = CyberNeuron.signedGap(sum, wanted);
+        pressures.put(neuron, gap);
+        edits.put(neuron, gap);
+      }
+      return;
+    }
+
+    final List<ConsumerLink> links = this.outgoing.getOrDefault(neuron, List.of());
+    if (!this.hasUnsatisfiedConsumer(links, pressures)) {
+      targets.put(neuron, forward.bands.get(neuron));
+      return;
+    }
+
+    final int share = this.downstreamShare(links, pressures);
+    final int currentSymbol = forward.bands.get(neuron).ordinal();
+    final int usefulSymbol = this.usefulSymbol(
+        links, currentSymbol, share, forward, pressures, targets);
+    if (usefulSymbol != currentSymbol) {
+      final ConfidenceDegree wanted = CONFIDENCE_VALUES[usefulSymbol];
+      final int sum = forward.sums.get(neuron);
+      final int targetGap = CyberNeuron.signedGap(sum, wanted);
+      final int magnitude = Math.min(
+          Math.abs(targetGap), this.errorShareMagnitude(links, pressures));
+      if (magnitude > 0) {
+        final int signedEdit = Integer.signum(targetGap) * magnitude;
+        final int propagated = this.propagatedPressure(wanted, sum, targetGap, share, signedEdit);
+        pressures.put(neuron, propagated);
+        edits.put(neuron, signedEdit);
         targets.put(neuron, wanted);
       }
       return;
     }
 
-    final int currentSymbol = forward.bands.get(neuron).ordinal();
-    final int usefulSymbol = this.usefulSymbol(neuron, currentSymbol, gaps);
-    if (usefulSymbol != currentSymbol) {
-      final ConfidenceDegree wanted = ConfidenceDegree.values()[usefulSymbol];
-      final int sum = forward.sums.get(neuron);
-      gaps.put(neuron, CyberNeuron.signedGap(sum, wanted));
-      targets.put(neuron, wanted);
-      return;
-    }
-
-    int share = 0;
-    int signSource = 0;
-    for (final Feed feed : this.outgoing.getOrDefault(neuron, List.of())) {
-      final Integer downstream = gaps.get(feed.target);
-      if (downstream == null || downstream == 0) {
-        continue;
-      }
-      signSource = downstream;
-      share += downstream / feed.target.getInputSize();
-    }
-    if (share == 0 && signSource != 0) {
-      share = Integer.signum(signSource);
-    }
-    if (share != 0) {
-      gaps.put(neuron, share);
+    if (share != 0 && !this.breaksSatisfiedConsumersMore(
+        links, currentSymbol, share, forward, pressures, targets)) {
+      pressures.put(neuron, share);
+      edits.put(neuron, share);
+    } else {
+      targets.put(neuron, forward.bands.get(neuron));
     }
   }
 
-  private int usefulSymbol(
-      final CyberNeuron neuron,
-      final int currentSymbol,
+  private int propagatedPressure(
+      final ConfidenceDegree wanted,
+      final int sum,
+      final int targetGap,
+      final int share,
+      final int signedEdit) {
+    if (targetGap <= 0 || share <= 0) {
+      return signedEdit;
+    }
+    if (wanted == ConfidenceDegree.YES) {
+      return share;
+    }
+    final int center = wanted == ConfidenceDegree.MAY_BE_YES ? 83 : 44;
+    return Math.min(share, Math.max(signedEdit, center - sum));
+  }
+
+  private boolean hasUnsatisfiedConsumer(
+      final List<ConsumerLink> links,
       final Map<CyberNeuron, Integer> gaps) {
+    for (final ConsumerLink link : links) {
+      if (gaps.getOrDefault(link.target, 0) != 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private int downstreamShare(
+      final List<ConsumerLink> links,
+      final Map<CyberNeuron, Integer> gaps) {
+    double exact = 0.0d;
+    for (final ConsumerLink link : links) {
+      final int downstream = gaps.getOrDefault(link.target, 0);
+      if (downstream != 0) {
+        exact += (double) downstream * link.slots.length / link.target.getInputSize();
+      }
+    }
+    if (exact == 0.0d) {
+      return 0;
+    }
+    final int truncated = (int) exact;
+    return truncated != 0 ? truncated : (exact > 0.0d ? 1 : -1);
+  }
+
+  private int errorShareMagnitude(
+      final List<ConsumerLink> links,
+      final Map<CyberNeuron, Integer> gaps) {
+    double exact = 0.0d;
+    for (final ConsumerLink link : links) {
+      final int downstream = gaps.getOrDefault(link.target, 0);
+      if (downstream != 0) {
+        exact += (double) Math.abs(downstream) * link.slots.length / link.target.getInputSize();
+      }
+    }
+    if (exact == 0.0d) {
+      return 0;
+    }
+    return Math.max(1, (int) exact);
+  }
+
+  private int usefulSymbol(
+      final List<ConsumerLink> links,
+      final int currentSymbol,
+      final int share,
+      final Forward forward,
+      final Map<CyberNeuron, Integer> gaps,
+      final Map<CyberNeuron, ConfidenceDegree> targets) {
     int bestSymbol = currentSymbol;
     int bestBenefit = 0;
-    for (int symbol = 0; symbol < ConfidenceDegree.values().length; symbol++) {
+    for (int symbol = 0; symbol < CONFIDENCE_VALUES.length; symbol++) {
       if (symbol == currentSymbol) {
         continue;
       }
+      if (!this.isConsistentSymbolTransition(links, currentSymbol, symbol, share, gaps)) {
+        continue;
+      }
       int benefit = 0;
-      for (final Feed feed : this.outgoing.getOrDefault(neuron, List.of())) {
-        final Integer downstream = gaps.get(feed.target);
-        if (downstream == null || downstream == 0) {
-          continue;
-        }
-        final int effect = this.cell(feed.target, feed.slot, symbol)
-            - this.cell(feed.target, feed.slot, currentSymbol);
-        benefit += aligned(effect, downstream);
+      for (final ConsumerLink link : links) {
+        final int effect = this.cellSum(link, symbol) - this.cellSum(link, currentSymbol);
+        benefit += this.consumerBenefit(link.target, effect, forward, gaps, targets);
       }
       if (benefit > bestBenefit) {
         bestBenefit = benefit;
@@ -268,6 +355,89 @@ public final class CyberNetwork {
       }
     }
     return bestSymbol;
+  }
+
+  private boolean isConsistentSymbolTransition(
+      final List<ConsumerLink> links,
+      final int currentSymbol,
+      final int candidateSymbol,
+      final int share,
+      final Map<CyberNeuron, Integer> gaps) {
+    if (share > 0 && candidateSymbol < currentSymbol) {
+      return this.hasInhibitoryCell(links, currentSymbol, gaps, true);
+    }
+    if (share < 0 && candidateSymbol > currentSymbol) {
+      return this.hasInhibitoryCell(links, candidateSymbol, gaps, false);
+    }
+    return true;
+  }
+
+  private boolean hasInhibitoryCell(
+      final List<ConsumerLink> links,
+      final int symbol,
+      final Map<CyberNeuron, Integer> gaps,
+      final boolean positiveDownstream) {
+    for (final ConsumerLink link : links) {
+      final int downstream = gaps.getOrDefault(link.target, 0);
+      final boolean matchesSign = positiveDownstream ? downstream > 0 : downstream < 0;
+      if (matchesSign && this.cellSum(link, symbol) < 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private int consumerBenefit(
+      final CyberNeuron consumer,
+      final int effect,
+      final Forward forward,
+      final Map<CyberNeuron, Integer> gaps,
+      final Map<CyberNeuron, ConfidenceDegree> targets) {
+    final ConfidenceDegree wanted = targets.get(consumer);
+    if (wanted != null) {
+      final int sum = forward.sums.get(consumer);
+      final int beforeError = Math.abs(CyberNeuron.signedGap(sum, wanted));
+      final int afterError = Math.abs(CyberNeuron.signedGap(sum + effect, wanted));
+      return beforeError - afterError;
+    }
+    return aligned(effect, gaps.getOrDefault(consumer, 0));
+  }
+
+  private boolean breaksSatisfiedConsumersMore(
+      final List<ConsumerLink> links,
+      final int currentSymbol,
+      final int share,
+      final Forward forward,
+      final Map<CyberNeuron, Integer> gaps,
+      final Map<CyberNeuron, ConfidenceDegree> targets) {
+    final int nextSymbol = share > 0 ? currentSymbol + 1 : currentSymbol - 1;
+    if (nextSymbol < 0 || nextSymbol >= CONFIDENCE_VALUES.length) {
+      return false;
+    }
+    long unsatisfiedError = 0L;
+    long satisfiedDamage = 0L;
+    for (final ConsumerLink link : links) {
+      final int downstream = gaps.getOrDefault(link.target, 0);
+      if (downstream != 0) {
+        unsatisfiedError += Math.abs((long) downstream);
+        continue;
+      }
+      final ConfidenceDegree wanted = targets.get(link.target);
+      if (wanted != null) {
+        final int effect = this.cellSum(link, nextSymbol) - this.cellSum(link, currentSymbol);
+        final int afterSum = forward.sums.get(link.target) + effect;
+        satisfiedDamage += Math.abs((long) CyberNeuron.signedGap(afterSum, wanted));
+      }
+    }
+    return satisfiedDamage > 0L && satisfiedDamage >= unsatisfiedError;
+  }
+
+  private int cellSum(final ConsumerLink link, final int symbol) {
+    int total = 0;
+    for (final int slot : link.slots) {
+      total += this.cell(link.target, slot, symbol);
+    }
+    return total;
   }
 
   private int cell(final CyberNeuron neuron, final int slot, final int symbol) {
@@ -294,10 +464,11 @@ public final class CyberNetwork {
             : signals.get(source.neuron);
       }
       final int sum = neuron.calc(inputs);
+      final ConfidenceDegree band = CyberNeuron.bandOf(sum);
       forward.inputs.put(neuron, inputs);
       forward.sums.put(neuron, sum);
-      forward.bands.put(neuron, CyberNeuron.bandOf(sum));
-      signals.put(neuron, CyberNeuron.bandOf(sum).ordinal());
+      forward.bands.put(neuron, band);
+      signals.put(neuron, band.ordinal());
     }
     return forward;
   }
@@ -378,7 +549,8 @@ public final class CyberNetwork {
      * @param targetSlot input slot on {@code target}
      * @return this builder
      * @throws IllegalArgumentException when the slot is illegal, already bound,
-     *                                  {@code target} cannot address {@code 0..3}, or the two neurons are the same
+     *                                  {@code target} cannot address {@code 0..3},
+     *                                  or the two neurons are the same
      */
     public Builder connect(
         final CyberNeuron source,
@@ -438,43 +610,49 @@ public final class CyberNetwork {
         frozen.put(entry.getKey(), entry.getValue().clone());
       }
       final List<CyberNeuron> order = this.topologicalOrder();
-      final Map<CyberNeuron, List<Feed>> outgoing = this.outgoingLinks();
+      final Map<CyberNeuron, List<ConsumerLink>> outgoing = this.outgoingLinks();
+      final List<CyberNeuron> frozenOutputs = List.copyOf(this.outputs);
       return new CyberNetwork(
           this.externalCount,
           order,
-          List.copyOf(this.outputs),
+          frozenOutputs,
+          this.indexOutputs(frozenOutputs),
           frozen,
           outgoing,
           Map.copyOf(this.layerWeights),
           this.depths(order, outgoing));
     }
 
+    private Map<CyberNeuron, Integer> indexOutputs(final List<CyberNeuron> frozenOutputs) {
+      final Map<CyberNeuron, Integer> indices = new HashMap<>();
+      for (int index = 0; index < frozenOutputs.size(); index++) {
+        indices.put(frozenOutputs.get(index), index);
+      }
+      return Map.copyOf(indices);
+    }
+
     private Map<CyberNeuron, Integer> depths(
         final List<CyberNeuron> order,
-        final Map<CyberNeuron, List<Feed>> outgoing) {
+        final Map<CyberNeuron, List<ConsumerLink>> outgoing) {
       final Map<CyberNeuron, Integer> depth = new HashMap<>();
       for (final CyberNeuron output : this.outputs) {
         depth.put(output, 0);
       }
-      boolean changed = true;
-      while (changed) {
-        changed = false;
-        for (final CyberNeuron neuron : order) {
-          for (final Feed feed : outgoing.getOrDefault(neuron, List.of())) {
-            final Integer consumerDepth = depth.get(feed.target);
-            if (consumerDepth == null) {
-              continue;
-            }
-            final int candidate = consumerDepth + 1;
-            final Integer current = depth.get(neuron);
-            if (current == null || candidate < current) {
-              depth.put(neuron, candidate);
-              changed = true;
-            }
+      for (int index = order.size() - 1; index >= 0; index--) {
+        final CyberNeuron neuron = order.get(index);
+        for (final ConsumerLink link : outgoing.getOrDefault(neuron, List.of())) {
+          final Integer consumerDepth = depth.get(link.target);
+          if (consumerDepth == null) {
+            continue;
+          }
+          final int candidate = consumerDepth + 1;
+          final Integer current = depth.get(neuron);
+          if (current == null || candidate < current) {
+            depth.put(neuron, candidate);
           }
         }
       }
-      return depth;
+      return Map.copyOf(depth);
     }
 
     private void requireSlot(final CyberNeuron neuron, final int slot) {
@@ -493,24 +671,39 @@ public final class CyberNetwork {
           neuron, ignored -> new SlotSource[neuron.getInputSize()]);
     }
 
-    private Map<CyberNeuron, List<Feed>> outgoingLinks() {
-      final Map<CyberNeuron, List<Feed>> outgoing = new LinkedHashMap<>();
+    private Map<CyberNeuron, List<ConsumerLink>> outgoingLinks() {
+      final Map<CyberNeuron, Map<CyberNeuron, List<Integer>>> grouped = new LinkedHashMap<>();
       for (final Map.Entry<CyberNeuron, SlotSource[]> entry : this.bindings.entrySet()) {
+        final CyberNeuron target = entry.getKey();
         final SlotSource[] slots = entry.getValue();
         for (int slot = 0; slot < slots.length; slot++) {
           final CyberNeuron source = slots[slot].neuron;
           if (source != null) {
-            outgoing.computeIfAbsent(source, ignored -> new ArrayList<>())
-                .add(new Feed(entry.getKey(), slot));
+            grouped.computeIfAbsent(source, ignored -> new LinkedHashMap<>())
+                .computeIfAbsent(target, ignored -> new ArrayList<>())
+                .add(slot);
           }
         }
+      }
+      final Map<CyberNeuron, List<ConsumerLink>> outgoing = new LinkedHashMap<>();
+      for (final Map.Entry<CyberNeuron, Map<CyberNeuron, List<Integer>>> sourceEntry
+          : grouped.entrySet()) {
+        final List<ConsumerLink> links = new ArrayList<>();
+        for (final Map.Entry<CyberNeuron, List<Integer>> targetEntry
+            : sourceEntry.getValue().entrySet()) {
+          final int[] slotArray = targetEntry.getValue().stream()
+              .mapToInt(Integer::intValue)
+              .toArray();
+          links.add(new ConsumerLink(targetEntry.getKey(), slotArray));
+        }
+        outgoing.put(sourceEntry.getKey(), List.copyOf(links));
       }
       return outgoing;
     }
 
     private List<CyberNeuron> topologicalOrder() {
-      final Map<CyberNeuron, Integer> pending = new HashMap<>();
-      final Map<CyberNeuron, List<CyberNeuron>> readers = new HashMap<>();
+      final Map<CyberNeuron, Integer> pending = new LinkedHashMap<>();
+      final Map<CyberNeuron, List<CyberNeuron>> readers = new LinkedHashMap<>();
       for (final CyberNeuron neuron : this.bindings.keySet()) {
         pending.put(neuron, 0);
         readers.put(neuron, new ArrayList<>());
@@ -565,13 +758,13 @@ public final class CyberNetwork {
     }
   }
 
-  private static final class Feed {
+  private static final class ConsumerLink {
     private final CyberNeuron target;
-    private final int slot;
+    private final int[] slots;
 
-    private Feed(final CyberNeuron target, final int slot) {
+    private ConsumerLink(final CyberNeuron target, final int[] slots) {
       this.target = target;
-      this.slot = slot;
+      this.slots = slots;
     }
   }
 
